@@ -61,6 +61,7 @@ typedef struct kvm_ivshmem_device {
 	
 } kvm_ivshmem_device;
 
+static short server = -1;
 static int event_num;
 static wait_queue_head_t wait_queue;
 
@@ -490,6 +491,9 @@ static int kvm_ivshmem_mmap(struct file *filp, struct vm_area_struct * vma)
 
 module_init(kvm_ivshmem_init_module);
 module_exit(kvm_ivshmem_cleanup_module);
+
+module_param(server, short, 0);
+MODULE_PARM_DESC(server, "Whether to run as a memshare server");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Cam Macdonell <cam@cs.ualberta.ca>");
