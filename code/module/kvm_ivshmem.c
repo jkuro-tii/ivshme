@@ -24,6 +24,7 @@
 
 #define KVM_IVSHMEM_DEVICE_MINOR_NUM 0
 #define VECTORS_COUNT (1)
+#define READ_QUEUE (0)
 
 #define DEBUG
 #ifdef DEBUG
@@ -61,7 +62,7 @@ typedef struct kvm_ivshmem_device {
 	
 } kvm_ivshmem_device;
 
-static short server = -1;
+static short server = -1; // must be set to 0 or 1
 static int event_num;
 static wait_queue_head_t wait_queue;
 
@@ -414,8 +415,9 @@ static int __init kvm_ivshmem_init_module (void)
 	int err = -ENOMEM;
 
 	if (server == -1) {
-		printk(KERN_ERR "KVM_IVSHMEM: Please specify whether to run as a ");
-		
+		printk(KERN_ERR "KVM_IVSHMEM: Please specify the server variable (insmod ... server=[0|1]) ");
+		err = -EINVAL;
+                goto error;
 	}
 
 	/* Register device node ops. */
