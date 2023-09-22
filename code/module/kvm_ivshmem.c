@@ -413,6 +413,11 @@ static int __init kvm_ivshmem_init_module (void)
 
 	int err = -ENOMEM;
 
+	if (server == -1) {
+		printk(KERN_ERR "KVM_IVSHMEM: Please specify whether to run as a ");
+		
+	}
+
 	/* Register device node ops. */
 	err = misc_register(&kvm_ivshmem_misc_dev);
 	if (err < 0) {
