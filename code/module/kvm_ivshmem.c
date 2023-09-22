@@ -24,7 +24,8 @@
 
 #define KVM_IVSHMEM_DEVICE_MINOR_NUM 0
 #define VECTORS_COUNT (1)
-#define READ_QUEUE (0)
+#define LOCAL_DATA_INT  (0)
+#define REMOTE_DATA_INT (1)
 
 #define DEBUG
 #ifdef DEBUG
@@ -59,12 +60,18 @@ typedef struct kvm_ivshmem_device {
 	char (*msix_names)[256];
 	struct msix_entry *msix_entries;
 	int nvectors;
+	struct semaphore sem_local_data;
+	struct semaphore sem_remote_data;
+	int irq_local_data_ready;
+	int irq_remote_data_ready;
+	int local_event_num;
+	int remote_event_num;
+	wait_queue_head_t local_data_wait_queue;
+	wait_queue_head_t remote_data_wait_queue;
 	
 } kvm_ivshmem_device;
 
 static short server = -1; // must be set to 0 or 1
-static int event_num;
-static wait_queue_head_t wait_queue;
 
 static kvm_ivshmem_device kvm_ivshmem_dev;
 
@@ -125,9 +132,10 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 	switch (cmd) {
 		case wait_event: // 3
 			KVM_IVSHMEM_DPRINTK("sleeping on event (cmd = 0x%08x)", cmd);
-			wait_event_interruptible(wait_queue, (event_num == 1));
+			// TODO
+			//wait_event_interruptible(wait_queue, (event_num == 1));
 			KVM_IVSHMEM_DPRINTK("waking");
-			event_num = 0;
+			// event_num = 0;
 			break;
 		case wait_event_irq:
 			msg = ((arg & 0xff) << 8) + (cmd & 0xff);
@@ -252,9 +260,20 @@ static irqreturn_t kvm_ivshmem_interrupt (int irq, void *dev_instance)
 		return IRQ_NONE;
 	}
 
-	KVM_IVSHMEM_DPRINTK("irq");
-	event_num = 1;
-	wake_up_interruptible(&wait_queue);
+	KVM_IVSHMEM_DPRINTK("irq %d", irq);
+
+	if (irq == dev->irq_local_data_ready) {
+		dev->local_event_num = 1;
+		wake_up_interruptible(&dev->local_data_wait_queue);
+
+	} else if (irq == dev->irq_remote_data_ready) {
+		dev->remote_event_num = 1;
+		wake_up_interruptible(&dev->remote_data_wait_queue);
+	
+	} else {
+		printk(KERN_ERR "KVM_IVSHMEM: invalid irq number %d", irq);
+		return IRQ_NONE;
+	}
 
 	return IRQ_HANDLED;
 }
@@ -297,6 +316,14 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 			return -ENOSPC;
 		} else {
 			printk(KERN_INFO "KVM_IVSHMEM: allocated irq #%d", n);
+		}
+		if (i == LOCAL_DATA_INT) {
+			ivs_info->irq_local_data_ready = n;
+		} else if (i == REMOTE_DATA_INT)
+		{
+			ivs_info->irq_remote_data_ready = n;
+		} else {
+			printk(KERN_ERR "KVM_IVSHMEM: invalid vector number %d", i);
 		}
 	}
 
@@ -353,8 +380,12 @@ static int kvm_ivshmem_probe_device (struct pci_dev *pdev,
 		goto reg_release;
 	}
 
-	init_waitqueue_head(&wait_queue);
-	event_num = 0;
+	init_waitqueue_head(&kvm_ivshmem_dev.local_data_wait_queue);
+	init_waitqueue_head(&kvm_ivshmem_dev.remote_data_wait_queue);
+	kvm_ivshmem_dev.local_event_num = 1;
+	kvm_ivshmem_dev.remote_event_num = 0;
+	sema_init(&kvm_ivshmem_dev.sem_local_data, 1);
+	sema_init(&kvm_ivshmem_dev.sem_remote_data, 0);
 
 	if (request_msix_vectors(&kvm_ivshmem_dev, VECTORS_COUNT) != 0) {
 		printk(KERN_INFO "KVM_IVSHMEM: regular IRQs");
@@ -417,7 +448,7 @@ static int __init kvm_ivshmem_init_module (void)
 	if (server == -1) {
 		printk(KERN_ERR "KVM_IVSHMEM: Please specify the server variable (insmod ... server=[0|1]) ");
 		err = -EINVAL;
-                goto error;
+		goto error;
 	}
 
 	/* Register device node ops. */
@@ -444,14 +475,14 @@ error:
 static int kvm_ivshmem_open(struct inode * inode, struct file * filp)
 {
     printk(KERN_INFO "KVM_IVSHMEM: Opening kvm_ivshmem device");
-    event_num = 0;
+		// TODO
+    // event_num = 0;
     KVM_IVSHMEM_DPRINTK("Open OK");
     return 0;
 }
 
 static int kvm_ivshmem_release(struct inode * inode, struct file * filp)
 {
-
    return 0;
 }
 
