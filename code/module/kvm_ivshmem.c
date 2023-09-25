@@ -23,7 +23,7 @@
 #include <linux/miscdevice.h>
 
 #define KVM_IVSHMEM_DEVICE_MINOR_NUM 0
-#define VECTORS_COUNT (1)
+#define VECTORS_COUNT (2)
 #define LOCAL_DATA_INT  (0)
 #define REMOTE_DATA_INT (1)
 
