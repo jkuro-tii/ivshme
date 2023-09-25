@@ -109,6 +109,7 @@ void proc_server()
   do
   {
     // Wait for external data
+    printf("IOCTL_WAIT_IRQ_REMOTE\n");
     res = ioctl(pmem_fd, IOCTL_WAIT_IRQ_REMOTE);
     if (res < 0) {
       printf("%s:%d: IOCTL_WAIT_IRQ_REMOTE failed\n", __FILE__, __LINE__);
@@ -119,6 +120,7 @@ void proc_server()
     #endif
     memtest(vm_control->data, 0);
     // Release external data
+    printf("IOCTL_DOORBELL REMOTE_RESOURCE_INT_VEC\n");
     res = ioctl(pmem_fd, IOCTL_DOORBELL, vm_control->iv_client | REMOTE_RESOURCE_INT_VEC);
     if (res < 0) {
       printf("IOCTL_DOORBELL to server failed\n");
@@ -129,12 +131,13 @@ void proc_server()
     #ifdef DEBUG
     printf("Server: Task has been finished.\n");
     #endif
+    printf("IOCTL_WAIT_IRQ_LOCAL\n");
     res = ioctl(pmem_fd, IOCTL_WAIT_IRQ_LOCAL);
     if (res < 0) {
       printf("%s:%d: IOCTL_WAIT_IRQ_LOCAL failed\n", __FILE__, __LINE__);
       exit(1);
     }
-    printf("LOCAL_RESOURCE_INT_VEC\n");
+    printf("IOCTL_DOORBELL LOCAL_RESOURCE_INT_VEC\n");
     res = ioctl(pmem_fd, IOCTL_DOORBELL, vm_control->iv_client | LOCAL_RESOURCE_INT_VEC);
     if (res < 0) {
       printf("IOCTL_DOORBELL to server failed\n");
@@ -165,7 +168,7 @@ void proc_client()
       printf("IOCTL_WAIT_IRQ_LOCAL to server failed\n");
       exit(1);
     }
-    printf("LOCAL_RESOURCE_INT_VEC\n");
+    printf("IOCTL_DOORBELL LOCAL_RESOURCE_INT_VEC\n");
     vm_control->data = rand();
     // Release local data
     res = ioctl(pmem_fd, IOCTL_DOORBELL, vm_control->iv_server | LOCAL_RESOURCE_INT_VEC);
@@ -186,6 +189,13 @@ void proc_client()
     printf("Client: task done. Verifying.\n");
     #endif
     memtest(vm_control->data, 1);
+    // Release remote data
+    printf("IOCTL_DOORBELL REMOTE_RESOURCE_INT_VEC\n");
+    res = ioctl(pmem_fd, IOCTL_DOORBELL, vm_control->iv_server | REMOTE_RESOURCE_INT_VEC);
+    if (res < 0) {
+      printf("IOCTL_DOORBELL to server failed\n");
+      exit(1);
+    }
     printf("Loop...\n");
   } while(!vm_control->shutdown);
 }
