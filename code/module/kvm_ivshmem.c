@@ -59,17 +59,17 @@ typedef struct kvm_ivshmem_device {
 	struct pci_dev *dev;
 	char (*msix_names)[256];
 	struct msix_entry *msix_entries;
-	int nvectors;
-	struct semaphore sem_local_data;
-	struct semaphore sem_remote_data;
-	int irq_local_data_ready;
-	int irq_remote_data_ready;
-	int local_event_num;
-	int remote_event_num;
-	wait_queue_head_t local_data_wait_queue;
-	wait_queue_head_t remote_data_wait_queue;
-	
+	int nvectors;	
 } kvm_ivshmem_device;
+
+static struct semaphore sem_local_data;
+static struct semaphore sem_remote_data;
+static int irq_local_data_ready;
+static int irq_remote_data_ready;
+static int local_resource_count;
+static int remote_resource_count;
+static wait_queue_head_t local_data_ready_wait_queue;
+static wait_queue_head_t remote_data_ready_wait_queue;
 
 static short server = -1; // must be set to 0 or 1
 
@@ -82,8 +82,8 @@ static int kvm_ivshmem_release(struct inode *, struct file *);
 static ssize_t kvm_ivshmem_read(struct file *, char *, size_t, loff_t *);
 static ssize_t kvm_ivshmem_write(struct file *, const char *, size_t, loff_t *);
 static loff_t kvm_ivshmem_lseek(struct file * filp, loff_t offset, int origin);
-
-enum ivshmem_ioctl { set_sema, down_sema, empty, wait_event, wait_event_irq, read_ivposn, read_livelist, sema_irq, doorbell };
+//                      0           1        2        3!                 4!              5!           6              7         8!
+enum ivshmem_ioctl { set_sema, down_sema, empty, wait_event_local, wait_event_remote, read_ivposn, read_livelist, sema_irq, doorbell, wait_event_irq };
 
 static const struct file_operations kvm_ivshmem_ops = {
 	.owner   = THIS_MODULE,
@@ -130,12 +130,17 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 
 	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx", cmd, arg);
 	switch (cmd) {
-		case wait_event: // 3
-			KVM_IVSHMEM_DPRINTK("sleeping on event (cmd = 0x%08x)", cmd);
-			// TODO
-			//wait_event_interruptible(wait_queue, (event_num == 1));
+		case wait_event_local: // 3
+			KVM_IVSHMEM_DPRINTK("sleeping on local resource (cmd = 0x%08x)", cmd);
+			wait_event_interruptible(local_data_ready_wait_queue, (local_resource_count == 1));
 			KVM_IVSHMEM_DPRINTK("waking");
-			// event_num = 0;
+			local_resource_count = 0;
+			break;
+		case wait_event_remote: // 4
+			KVM_IVSHMEM_DPRINTK("sleeping on remote resource (cmd = 0x%08x)", cmd);
+			wait_event_interruptible(remote_data_ready_wait_queue, (remote_resource_count == 1));
+			KVM_IVSHMEM_DPRINTK("waking");
+			remote_resource_count = 0;
 			break;
 		case wait_event_irq:
 			msg = ((arg & 0xff) << 8) + (cmd & 0xff);
@@ -262,13 +267,13 @@ static irqreturn_t kvm_ivshmem_interrupt (int irq, void *dev_instance)
 
 	KVM_IVSHMEM_DPRINTK("irq %d", irq);
 
-	if (irq == dev->irq_local_data_ready) {
-		dev->local_event_num = 1;
-		wake_up_interruptible(&dev->local_data_wait_queue);
+	if (irq == irq_local_data_ready) {
+		local_resource_count = 1;
+		wake_up_interruptible(&local_data_ready_wait_queue);
 
-	} else if (irq == dev->irq_remote_data_ready) {
-		dev->remote_event_num = 1;
-		wake_up_interruptible(&dev->remote_data_wait_queue);
+	} else if (irq == irq_remote_data_ready) {
+		remote_resource_count = 1;
+		wake_up_interruptible(&remote_data_ready_wait_queue);
 	
 	} else {
 		printk(KERN_ERR "KVM_IVSHMEM: invalid irq number %d", irq);
@@ -317,11 +322,14 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 		} else {
 			printk(KERN_INFO "KVM_IVSHMEM: allocated irq #%d", n);
 		}
+		// vector 0 is used for managing localdata
 		if (i == LOCAL_DATA_INT) {
-			ivs_info->irq_local_data_ready = n;
+			irq_local_data_ready = n;
+			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for local resources", n);
 		} else if (i == REMOTE_DATA_INT)
 		{
-			ivs_info->irq_remote_data_ready = n;
+			irq_remote_data_ready = n;
+			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for remote resources", n);
 		} else {
 			printk(KERN_ERR "KVM_IVSHMEM: invalid vector number %d", i);
 		}
@@ -380,12 +388,14 @@ static int kvm_ivshmem_probe_device (struct pci_dev *pdev,
 		goto reg_release;
 	}
 
-	init_waitqueue_head(&kvm_ivshmem_dev.local_data_wait_queue);
-	init_waitqueue_head(&kvm_ivshmem_dev.remote_data_wait_queue);
-	kvm_ivshmem_dev.local_event_num = 1;
-	kvm_ivshmem_dev.remote_event_num = 0;
-	sema_init(&kvm_ivshmem_dev.sem_local_data, 1);
-	sema_init(&kvm_ivshmem_dev.sem_remote_data, 0);
+  // TODO: shouldn't it be moved to open()?
+	init_waitqueue_head(&local_data_ready_wait_queue);
+	init_waitqueue_head(&remote_data_ready_wait_queue);
+	local_resource_count = 1;
+	remote_resource_count = 0;
+	// TODO: are semaphores really needed?
+	sema_init(&sem_local_data, 1);
+	sema_init(&sem_remote_data, 0);
 
 	if (request_msix_vectors(&kvm_ivshmem_dev, VECTORS_COUNT) != 0) {
 		printk(KERN_INFO "KVM_IVSHMEM: regular IRQs");
