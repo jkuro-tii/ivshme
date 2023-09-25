@@ -499,6 +499,11 @@ static int kvm_ivshmem_open(struct inode * inode, struct file * filp)
     printk(KERN_INFO "KVM_IVSHMEM: Opening kvm_ivshmem device");
 		// TODO
     // event_num = 0;
+	init_waitqueue_head(&local_data_ready_wait_queue);
+	init_waitqueue_head(&remote_data_ready_wait_queue);
+	local_resource_count = 1;
+	remote_resource_count = 0;
+
     KVM_IVSHMEM_DPRINTK("Open OK");
     return 0;
 }
