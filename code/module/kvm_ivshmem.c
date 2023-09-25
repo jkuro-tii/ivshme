@@ -24,8 +24,8 @@
 
 #define KVM_IVSHMEM_DEVICE_MINOR_NUM 0
 #define VECTORS_COUNT (2)
-#define LOCAL_DATA_INT  (0)
-#define REMOTE_DATA_INT (1)
+#define LOCAL_RESOURCE_INT_VEC  (0)
+#define REMOTE_RESOURCE_INT_VEC (1)
 
 #define DEBUG
 #ifdef DEBUG
@@ -64,8 +64,8 @@ typedef struct kvm_ivshmem_device {
 
 static struct semaphore sem_local_data;
 static struct semaphore sem_remote_data;
-static int irq_local_data_ready;
-static int irq_remote_data_ready;
+static int irq_local_resource_ready;
+static int irq_remote_resource_ready;
 static int local_resource_count;
 static int remote_resource_count;
 static wait_queue_head_t local_data_ready_wait_queue;
@@ -160,7 +160,18 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 			writel(msg, kvm_ivshmem_dev.regs + Doorbell);
 			break;
 		case doorbell: // 8
-			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%lx", (arg >> 16), (arg & 0xffff));
+		  int vec = arg & 0xffff;
+
+			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16), vec);
+			if (vec == LOCAL_RESOURCE_INT_VEC) {
+        local_resource_count = 0;				
+			} else if (vec == REMOTE_RESOURCE_INT_VEC) {
+				remote_resource_count = 0;
+			} else {
+				KVM_IVSHMEM_DPRINTK("invalid interrupt vector %d", vec);
+				return -EINVAL;
+			}
+
 			writel(arg, kvm_ivshmem_dev.regs + Doorbell);
 			break;
 		default:
@@ -267,14 +278,16 @@ static irqreturn_t kvm_ivshmem_interrupt (int irq, void *dev_instance)
 
 	KVM_IVSHMEM_DPRINTK("irq %d", irq);
 
-	if (irq == irq_local_data_ready) {
+	if (irq == irq_remote_resource_ready) {
+		KVM_IVSHMEM_DPRINTK("local_data_ready_wait_queue");
 		local_resource_count = 1;
 		wake_up_interruptible(&local_data_ready_wait_queue);
 
-	} else if (irq == irq_remote_data_ready) {
+	} else if (irq == irq_local_resource_ready) {
+		KVM_IVSHMEM_DPRINTK("remote_data_ready_wait_queue");
 		remote_resource_count = 1;
 		wake_up_interruptible(&remote_data_ready_wait_queue);
-	
+
 	} else {
 		printk(KERN_ERR "KVM_IVSHMEM: invalid irq number %d", irq);
 		return IRQ_NONE;
@@ -322,12 +335,12 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 			printk(KERN_INFO "KVM_IVSHMEM: allocated irq #%d", n);
 		}
 		// vector 0 is used for managing localdata
-		if (i == LOCAL_DATA_INT) {
-			irq_local_data_ready = n;
+		if (i == LOCAL_RESOURCE_INT_VEC) {
+			irq_local_resource_ready = n;
 			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for local resources", n);
-		} else if (i == REMOTE_DATA_INT)
+		} else if (i == REMOTE_RESOURCE_INT_VEC)
 		{
-			irq_remote_data_ready = n;
+			irq_remote_resource_ready = n;
 			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for remote resources", n);
 		} else {
 			printk(KERN_ERR "KVM_IVSHMEM: invalid vector number %d", i);
