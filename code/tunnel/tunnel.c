@@ -110,10 +110,10 @@ void proc_server()
   do
   {
     // Wait for external data
-    printf("WAIT_EVENT_LOCAL\n");
-    res = ioctl(pmem_fd, WAIT_EVENT_LOCAL);
+    printf("IOCTL_WAIT_IRQ_LOCAL\n");
+    res = ioctl(pmem_fd, IOCTL_WAIT_IRQ_LOCAL);
     if (res < 0) {
-      printf("%s:%d: WAIT_EVENT_LOCAL failed\n", __FILE__, __LINE__);
+      printf("%s:%d: IOCTL_WAIT_IRQ_LOCAL failed\n", __FILE__, __LINE__);
       exit(1);
     }
     #ifdef DEBUG
@@ -178,11 +178,11 @@ void proc_client()
       exit(1);
     }
 
-    printf("WAIT_EVENT_LOCAL\n");
+    printf("IOCTL_WAIT_IRQ_LOCAL\n");
     // Wait for server completion
-    res = ioctl(pmem_fd, WAIT_EVENT_LOCAL);
+    res = ioctl(pmem_fd, IOCTL_WAIT_IRQ_LOCAL);
     if (res < 0) {
-      printf("%s:%d: WAIT_EVENT_LOCAL failed\n", __FILE__, __LINE__);
+      printf("%s:%d: IOCTL_WAIT_IRQ_LOCAL failed\n", __FILE__, __LINE__);
       exit(1);
     }
 
