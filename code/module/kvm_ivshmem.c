@@ -305,7 +305,7 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 		snprintf(ivs_info->msix_names[i], sizeof *ivs_info->msix_names,
 		 "%s-config", name);
 
-		n = pci_alloc_irq_vectors(ivs_info->dev, VECTORS_COUNT, VECTORS_COUNT, PCI_IRQ_MSIX);
+		n = pci_alloc_irq_vectors(ivs_info->dev, 1, 1, PCI_IRQ_MSIX);
 		if (n < 0) {
 			printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors i=%d: error %d", i, n);
 			return n;
