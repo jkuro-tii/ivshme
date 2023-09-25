@@ -16,10 +16,11 @@
 #include <stdlib.h>
 
 #define PMEM_DEVICE "/dev/ivshmem"
-#define IOCTL_WAIT_IRQ_LOCAL     (3)
-#define IOCTL_WAIT_IRQ_REMOTE    (4)
-#define IOCTL_READ_IV_POSN (5)
-#define IOCTL_DOORBELL     (8)
+#define IOCTL_WAIT_IRQ_LOCAL     (0)
+#define IOCTL_WAIT_IRQ_REMOTE    (1)
+#define IOCTL_READ_IV_POSN       (2)
+#define IOCTL_DOORBELL           (3)
+
 #define LOCAL_RESOURCE_INT_VEC  (0)
 #define REMOTE_RESOURCE_INT_VEC (1)
 
@@ -109,10 +110,10 @@ void proc_server()
   do
   {
     // Wait for external data
-    printf("IOCTL_WAIT_IRQ_REMOTE\n");
-    res = ioctl(pmem_fd, IOCTL_WAIT_IRQ_REMOTE);
+    printf("WAIT_EVENT_LOCAL\n");
+    res = ioctl(pmem_fd, WAIT_EVENT_LOCAL);
     if (res < 0) {
-      printf("%s:%d: IOCTL_WAIT_IRQ_REMOTE failed\n", __FILE__, __LINE__);
+      printf("%s:%d: WAIT_EVENT_LOCAL failed\n", __FILE__, __LINE__);
       exit(1);
     }
     #ifdef DEBUG
@@ -177,11 +178,11 @@ void proc_client()
       exit(1);
     }
 
-    printf("IOCTL_WAIT_IRQ_REMOTE\n");
+    printf("WAIT_EVENT_LOCAL\n");
     // Wait for server completion
-    res = ioctl(pmem_fd, IOCTL_WAIT_IRQ_REMOTE);
+    res = ioctl(pmem_fd, WAIT_EVENT_LOCAL);
     if (res < 0) {
-      printf("%s:%d: IOCTL_WAIT_IRQ_REMOTE failed\n", __FILE__, __LINE__);
+      printf("%s:%d: WAIT_EVENT_LOCAL failed\n", __FILE__, __LINE__);
       exit(1);
     }
 

@@ -62,16 +62,12 @@ typedef struct kvm_ivshmem_device {
 	int nvectors;	
 } kvm_ivshmem_device;
 
-static struct semaphore sem_local_data;
-static struct semaphore sem_remote_data;
 static int irq_local_resource_ready;
 static int irq_remote_resource_ready;
 static int local_resource_count;
 static int remote_resource_count;
 static wait_queue_head_t local_data_ready_wait_queue;
 static wait_queue_head_t remote_data_ready_wait_queue;
-
-static short server = -1; // must be set to 0 or 1
 
 static kvm_ivshmem_device kvm_ivshmem_dev;
 
@@ -82,8 +78,8 @@ static int kvm_ivshmem_release(struct inode *, struct file *);
 static ssize_t kvm_ivshmem_read(struct file *, char *, size_t, loff_t *);
 static ssize_t kvm_ivshmem_write(struct file *, const char *, size_t, loff_t *);
 static loff_t kvm_ivshmem_lseek(struct file * filp, loff_t offset, int origin);
-//                      0           1        2        3!                 4!              5!           6              7         8!
-enum ivshmem_ioctl { set_sema, down_sema, empty, wait_event_local, wait_event_remote, read_ivposn, read_livelist, sema_irq, doorbell, wait_event_irq };
+//                      0                   1                 2         3
+enum ivshmem_ioctl { WAIT_EVENT_LOCAL, WAIT_EVENT_REMOTE, READ_IVPOSN, DOORBELL };
 
 static const struct file_operations kvm_ivshmem_ops = {
 	.owner   = THIS_MODULE,
@@ -125,41 +121,29 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 			unsigned int cmd, unsigned long arg)
 {
 
-	int rv;
+	int rv = 0;
 	uint32_t msg;
 
 	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx", cmd, arg);
 	switch (cmd) {
-		case wait_event_local: // 3
+		case WAIT_EVENT_LOCAL: // 3
 			KVM_IVSHMEM_DPRINTK("sleeping on local resource (cmd = 0x%08x)", cmd);
 			wait_event_interruptible(local_data_ready_wait_queue, (local_resource_count == 1));
 			KVM_IVSHMEM_DPRINTK("waking");
 			local_resource_count = 0;
 			break;
-		case wait_event_remote: // 4
+		case WAIT_EVENT_REMOTE: // 4
 			KVM_IVSHMEM_DPRINTK("sleeping on remote resource (cmd = 0x%08x)", cmd);
 			wait_event_interruptible(remote_data_ready_wait_queue, (remote_resource_count == 1));
 			KVM_IVSHMEM_DPRINTK("waking");
 			remote_resource_count = 0;
 			break;
-		case wait_event_irq:
-			msg = ((arg & 0xff) << 8) + (cmd & 0xff);
-			KVM_IVSHMEM_DPRINTK("ringing wait_event doorbell on 0x%lx (msg = 0x%x)", arg, msg);
-			writel(msg, kvm_ivshmem_dev.regs + Doorbell);
-			break;
-		case read_ivposn:
+		case READ_IVPOSN:
 			msg = readl( kvm_ivshmem_dev.regs + IVPosition);
 			KVM_IVSHMEM_DPRINTK("my posn is 0x%08x", msg);
 			rv = copy_to_user((void __user *)arg, &msg, sizeof(msg));
 			break;
-		case sema_irq:
-			// 2 is the actual code, but we use 7 from the user
-			msg = ((arg & 0xff) << 8) + (cmd & 0xff);
-			KVM_IVSHMEM_DPRINTK("args is 0x%lx", arg);
-			KVM_IVSHMEM_DPRINTK("ringing sema doorbell");
-			writel(msg, kvm_ivshmem_dev.regs + Doorbell);
-			break;
-		case doorbell: // 8
+		case DOORBELL: // 8
 		  int vec = arg & 0xffff;
 
 			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16), vec);
@@ -171,11 +155,11 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 				KVM_IVSHMEM_DPRINTK("invalid interrupt vector %d", vec);
 				return -EINVAL;
 			}
-
 			writel(arg, kvm_ivshmem_dev.regs + Doorbell);
 			break;
 		default:
 			KVM_IVSHMEM_DPRINTK("bad ioctl (0x%08x)", cmd);
+			return -EINVAL;
 	}
 	
 	return 0;
@@ -334,10 +318,11 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 		} else {
 			printk(KERN_INFO "KVM_IVSHMEM: allocated irq #%d", n);
 		}
-		// vector 0 is used for managing localdata
+		// vector 0 is used for managing local data/resources
 		if (i == LOCAL_RESOURCE_INT_VEC) {
 			irq_local_resource_ready = n;
 			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for local resources", n);
+		// vector 1 is used for managing remote data/resources
 		} else if (i == REMOTE_RESOURCE_INT_VEC)
 		{
 			irq_remote_resource_ready = n;
@@ -348,7 +333,6 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 	}
 
 	pci_set_master(ivs_info->dev);
-
 	return 0;
 }
 
@@ -399,15 +383,6 @@ static int kvm_ivshmem_probe_device (struct pci_dev *pdev,
 							kvm_ivshmem_dev.reg_size);
 		goto reg_release;
 	}
-
-  // TODO: shouldn't it be moved to open()?
-	init_waitqueue_head(&local_data_ready_wait_queue);
-	init_waitqueue_head(&remote_data_ready_wait_queue);
-	local_resource_count = 1;
-	remote_resource_count = 0;
-	// TODO: are semaphores really needed?
-	sema_init(&sem_local_data, 1);
-	sema_init(&sem_remote_data, 0);
 
 	if (request_msix_vectors(&kvm_ivshmem_dev, VECTORS_COUNT) != 0) {
 		printk(KERN_INFO "KVM_IVSHMEM: regular IRQs");
@@ -467,12 +442,6 @@ static int __init kvm_ivshmem_init_module (void)
 
 	int err = -ENOMEM;
 
-	if (server == -1) {
-		printk(KERN_ERR "KVM_IVSHMEM: Please specify the server variable (insmod ... server=[0|1]) ");
-		err = -EINVAL;
-		goto error;
-	}
-
 	/* Register device node ops. */
 	err = misc_register(&kvm_ivshmem_misc_dev);
 	if (err < 0) {
@@ -496,16 +465,15 @@ error:
 
 static int kvm_ivshmem_open(struct inode * inode, struct file * filp)
 {
-    printk(KERN_INFO "KVM_IVSHMEM: Opening kvm_ivshmem device");
-		// TODO
-    // event_num = 0;
+	printk(KERN_INFO "KVM_IVSHMEM: Opening kvm_ivshmem device");
+
 	init_waitqueue_head(&local_data_ready_wait_queue);
 	init_waitqueue_head(&remote_data_ready_wait_queue);
 	local_resource_count = 1;
 	remote_resource_count = 0;
 
-    KVM_IVSHMEM_DPRINTK("Open OK");
-    return 0;
+	KVM_IVSHMEM_DPRINTK("Open OK");
+	return 0;
 }
 
 static int kvm_ivshmem_release(struct inode * inode, struct file * filp)
@@ -556,9 +524,6 @@ static int kvm_ivshmem_mmap(struct file *filp, struct vm_area_struct * vma)
 
 module_init(kvm_ivshmem_init_module);
 module_exit(kvm_ivshmem_cleanup_module);
-
-module_param(server, short, 0);
-MODULE_PARM_DESC(server, "Whether to run as a memshare server");
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Cam Macdonell <cam@cs.ualberta.ca>");
