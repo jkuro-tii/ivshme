@@ -285,7 +285,7 @@ static irqreturn_t kvm_ivshmem_interrupt (int irq, void *dev_instance)
 
 static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvectors)
 {
-	int i, err;
+	int i, n, err;
 	const char *name = "ivshmem";
 
 	printk(KERN_INFO "KVM_IVSHMEM: devname is %s", name);
@@ -299,18 +299,17 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 	for (i = 0; i < nvectors; i++)
 		ivs_info->msix_entries[i].entry = i;
 
+	n = pci_alloc_irq_vectors(ivs_info->dev, nvectors, nvectors, PCI_IRQ_MSIX);
+	if (n < 0 ) {
+		printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors i=%d: error %d", i, n);
+		return n;
+	}
+	printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors(): %d OK", n);
+
 	for (i = 0; i < nvectors; i++) {
-		int n;
 
 		snprintf(ivs_info->msix_names[i], sizeof *ivs_info->msix_names,
 		 "%s-config", name);
-
-		n = pci_alloc_irq_vectors(ivs_info->dev, 1, 1, PCI_IRQ_MSIX);
-		if (n < 0) {
-			printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors i=%d: error %d", i, n);
-			return n;
-		}
-		printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors(): %d OK", n);
 
 		n = pci_irq_vector(ivs_info->dev, i);
 		err = request_irq(n, kvm_ivshmem_interrupt, IRQF_SHARED,
