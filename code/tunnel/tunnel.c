@@ -18,8 +18,8 @@
 #define PMEM_DEVICE "/dev/ivshmem"
 #define IOCTL_WAIT_IRQ_LOCAL     (0)
 #define IOCTL_WAIT_IRQ_REMOTE    (1)
-#define IOCTL_READ_IV_POSN       (2)
-#define IOCTL_DOORBELL           (3)
+#define IOCTL_READ_IV_POSN       (3)
+#define IOCTL_DOORBELL           (4)
 
 #define LOCAL_RESOURCE_INT_VEC  (0)
 #define REMOTE_RESOURCE_INT_VEC (1)

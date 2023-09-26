@@ -78,8 +78,8 @@ static int kvm_ivshmem_release(struct inode *, struct file *);
 static ssize_t kvm_ivshmem_read(struct file *, char *, size_t, loff_t *);
 static ssize_t kvm_ivshmem_write(struct file *, const char *, size_t, loff_t *);
 static loff_t kvm_ivshmem_lseek(struct file * filp, loff_t offset, int origin);
-//                      0                   1                 2         3
-enum ivshmem_ioctl { WAIT_EVENT_LOCAL, WAIT_EVENT_REMOTE, READ_IVPOSN, DOORBELL };
+//                      0                   1                         3         4
+enum ivshmem_ioctl { WAIT_EVENT_LOCAL, WAIT_EVENT_REMOTE, UNUSED, READ_IVPOSN, DOORBELL };
 
 static const struct file_operations kvm_ivshmem_ops = {
 	.owner   = THIS_MODULE,
