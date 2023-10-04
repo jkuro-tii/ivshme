@@ -131,7 +131,16 @@ void run_server() {
     }
 
     for (n = 0; n < nfds; n++) {
+      
+      fprintf(stderr, "%d: ", __LINE__);
+      fprintf(stderr, "Event 0x%x on fd %d\n", events[n].events,
+              events[n].data.fd);
 
+      if (events[n].events & (EPOLLHUP | EPOLLERR))
+      {
+        close(events[n].data.fd);
+        continue;
+      }
       if (events[n].data.fd == server_socket) {
         conn_sock = accept(server_socket, (struct sockaddr *)&caddr, &len);
         if (conn_sock == -1) {
@@ -147,9 +156,6 @@ void run_server() {
       }
 
       else {
-        fprintf(stderr, "%d: ", __LINE__);
-        fprintf(stderr, "Event 0x%x on fd %d\n", events[n].events,
-                events[n].data.fd);
 
         if (events[n].data.fd == wayland_socket) {
           fprintf(stderr, "%d: %s\n", __LINE__, "Reading from wayland socket");
