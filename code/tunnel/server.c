@@ -6,13 +6,22 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <unistd.h>
+
 #define CLIENT_SOCKET_FN ("./client.sock")
 #define SERVER_SOCKET_FN ("./server.sock")
+
+#define SHM_DEVICE_FN ("/dev/ivshmem")
+#define IOCTL_WAIT_IRQ_LOCAL     (0)
+#define IOCTL_WAIT_IRQ_REMOTE    (1)
+#define IOCTL_READ_IV_POSN       (3)
+#define IOCTL_DOORBELL           (4)
 
 #define MAX_EVENTS (1024)
 #define BUFFER_SIZE (1024000)
@@ -34,7 +43,17 @@
 struct epoll_event ev, events[MAX_EVENTS];
 int epollfd;
 
-int server_socket = -1, wayland_socket = -1;
+int server_socket = -1, wayland_socket = -1, shmem_fd = -1;
+int my_vmid = -1, peer_vm_id = -1;
+
+long int pmem_size;
+void *shmem_ptr;
+
+
+struct {
+  // struct of 
+}
+shm_msg;
 
 void report(const char *where, int line, const char *msg, int terminate) {
   char tmp[256];
@@ -46,6 +65,18 @@ void report(const char *where, int line, const char *msg, int terminate) {
   } else {
     fprintf(stderr, "%s\n", tmp);
   }
+}
+
+int get_pmem_size() {
+    int res;
+
+    res = lseek(shmem_fd, 0 , SEEK_END);
+    if (res < 0) 
+    {
+      REPORT("seek", 1);
+    }
+    lseek(shmem_fd, 0 , SEEK_SET);
+    return res;
 }
 
 int init_server() {
@@ -110,6 +141,49 @@ int init_wayland() {
   }
 
   LOG("client side initialized");
+  return 0;
+}
+
+
+int init_shmem_client()
+{
+  int res = -1;
+
+  printf("Waiting for devices setup...\n");
+  sleep(1);
+  /* Open shared memory */
+  shmem_fd = open(SHM_DEVICE_FN, O_RDWR);
+  if (shmem_fd < 0) {
+    REPORT(SHM_DEVICE_FN, 1);
+  }
+
+  /* Get shared memory */
+  pmem_size = get_pmem_size();
+  if (pmem_size <= 0)
+  {
+    REPORT("No shared memory detected", 1);
+  }
+  shmem_ptr = mmap(NULL, pmem_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE, shmem_fd, 0);
+  if (!shmem_ptr)
+  {
+    REPORT("Got NULL pointer from mmap", 1);
+  }
+  printf("Shared memory at address %p\n", shmem_ptr);
+  
+  /* get my VM Id */
+  res = ioctl(shmem_fd, IOCTL_READ_IV_POSN, &my_vmid);
+  if (res < 0) {
+    REPORT("IOCTL_READ_IV_POS failed", 1);
+  }
+  printf("My VM id = 0x%x\n", my_vmid);
+  my_vmid = my_vmid << 16;
+
+  // Allocate data?
+
+  // Ping
+
+  // Wait for pong
+
   return 0;
 }
 
@@ -212,6 +286,8 @@ int main() {
 
   init_server();
   init_wayland();
+
+  init_shmem_client();
 
   run_server();
 
