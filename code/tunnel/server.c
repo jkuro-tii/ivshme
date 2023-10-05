@@ -284,12 +284,12 @@ int main() {
     REPORT("init_server: epoll_create1", 1);
   }
 
-  init_server();
-  init_wayland();
+  // init_server();
+  // init_wayland();
 
   init_shmem_client();
 
-  run_server();
+  // run_server();
 
   return 0;
 }
