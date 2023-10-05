@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
+#include <sys/poll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/select.h>
@@ -16,15 +17,23 @@
 
 #define CLIENT_SOCKET_FN ("./client.sock")
 #define SERVER_SOCKET_FN ("./server.sock")
+#define CLIENT_TIMEOUT (1000)
+#define SERVER_TIMEOUT (1000)
 
 #define SHM_DEVICE_FN ("/dev/ivshmem")
-#define IOCTL_WAIT_IRQ_LOCAL     (0)
-#define IOCTL_WAIT_IRQ_REMOTE    (1)
-#define IOCTL_READ_IV_POSN       (3)
-#define IOCTL_DOORBELL           (4)
+#define SHMEM_IOC_MAGIC 's'
+#define SHMEM_IOCWLOCAL 	_IOR(SHMEM_IOC_MAGIC, 1, int)
+#define SHMEM_IOCWREMOTE 	_IOR(SHMEM_IOC_MAGIC, 2, int)
+#define SHMEM_IOCIVPOSN		_IOW(SHMEM_IOC_MAGIC, 3, int)
+#define SHMEM_IOCDORBELL  _IOR(SHMEM_IOC_MAGIC, 4, int)
+
+#define LOCAL_RESOURCE_INT_VEC  (0)
+#define REMOTE_RESOURCE_INT_VEC (1)
 
 #define MAX_EVENTS (1024)
 #define BUFFER_SIZE (1024000)
+
+#define SHMEM_BUFFER_SIZE (1024000*2)
 
 /* TODO: remove */
 #define stderr stdout
@@ -53,15 +62,14 @@ struct
 {
   volatile int iv_server;
   volatile int iv_client;
-  volatile int data_len;
-  volatile int msg;
-  volatile void *data;
+  volatile int server_data_len;
+  volatile int client_data_len;
+  volatile unsigned char server_data[SHMEM_BUFFER_SIZE];
+  volatile unsigned char client_data[SHMEM_BUFFER_SIZE];
 } volatile *vm_control;
 struct {
   // struct of 
 } shm_msg;
-
-
 
 void report(const char *where, int line, const char *msg, int terminate) {
   char tmp[256];
@@ -152,8 +160,52 @@ int init_wayland() {
   return 0;
 }
 
+void shmem_client_test() {
 
-int init_shmem_client()
+  int timeout, res;
+  unsigned int tmp;
+  struct pollfd fds = {
+    .fd = shmem_fd,
+    .events = POLLIN|POLLOUT,
+    .revents = 0
+  };
+
+  // Ping 
+  // timeout = SERVER_TIMEOUT*0;
+  // res = ioctl(shmem_fd, SHMEM_IOCWREMOTE, &timeout);
+  // printf("SHMEM_IOCWREMOTE: %d\n", res);
+  // Timeout?
+  // Wait for pong
+
+  do {
+    res = poll(&fds, 1, 0);
+    if (fds.revents & POLLIN) {
+      printf("POLLIN: ");
+      if (run_as_server) {
+        printf("%02x \n", vm_control->server_data_len);
+        usleep(random() % 3333333);
+        tmp = vm_control->iv_client | REMOTE_RESOURCE_INT_VEC;
+        res = ioctl(shmem_fd, SHMEM_IOCDORBELL, &my_vmid);
+        if (res < 0) {
+          REPORT("SHMEM_IOCDORBELL failed", 1);
+        }
+        } else {
+
+      }
+    }
+    if (fds.revents & POLLOUT) {
+      printf("POLLOUT");
+    }
+
+
+    // ?read -> wait, read
+    // ?write -> wait, write
+
+  } while(1);
+}
+
+
+int init_shmem_common()
 {
   int res = -1;
 
@@ -179,9 +231,9 @@ int init_shmem_client()
   printf("Shared memory at address %p 0x%lx bytes\n", vm_control, shmem_size);
    
   /* get my VM Id and store it */
-  res = ioctl(shmem_fd, IOCTL_READ_IV_POSN, &my_vmid);
+  res = ioctl(shmem_fd, SHMEM_IOCIVPOSN, &my_vmid);
   if (res < 0) {
-    REPORT("IOCTL_READ_IV_POS failed", 1);
+    REPORT("SHMEM_IOCIVPOSN failed", 1);
   }
   printf("My VM id = 0x%x running as a ", my_vmid);
   my_vmid = my_vmid << 16;
@@ -193,13 +245,20 @@ int init_shmem_client()
     vm_control->iv_client = my_vmid;
   }
 
-  // Allocate data?
+  shmem_client_test();
+  return 0;
+}
+
+void shmem_server_test() {
+
+  int timeout, res;
 
   // Ping
-
+  timeout = SERVER_TIMEOUT*0;
+  res = ioctl(shmem_fd, SHMEM_IOCWREMOTE, &timeout);
+  printf("SHMEM_IOCWREMOTE: %d\n", res);
+  // Timeout?
   // Wait for pong
-
-  return 0;
 }
 
 void run_server() {
@@ -248,7 +307,7 @@ void run_server() {
 
         if (events[n].data.fd == wayland_socket) {
           fprintf(stderr, "%d: %s\n", __LINE__, "Reading from wayland socket");
-
+          // TODO read directly into shared memory
           len = read(events[n].data.fd, buffer, sizeof(buffer));
 
           if (len <= 0) {
@@ -257,6 +316,7 @@ void run_server() {
           }
           fprintf(stderr, "Read %d bytes on fd#%d\n", len, events[n].data.fd);
 
+          // TODO: write directly from the share memory
           rv = write(current_client, buffer, len);
           if (rv != len) {
             fprintf(stderr, "Wrote %d out of %d bytes on fd#%d\n", rv, n,
@@ -272,6 +332,7 @@ void run_server() {
                   "Reading from connected client");
           current_client = events[n].data.fd;
 
+          // TODO: read directly from the share memory
           len = read(events[n].data.fd, buffer, sizeof(buffer));
           if (len <= 0) {
             REPORT("read", 0);
@@ -280,6 +341,7 @@ void run_server() {
 
           fprintf(stderr, "Read %d bytes on fd#%d\n", len, events[n].data.fd);
           // rv = write(current_client, buffer, len);
+          // TODO: write directly from the share memory
           rv = write(wayland_socket, buffer, len);
           if (rv != len) {
             fprintf(stderr, "Wrote only %d out of %d bytes on fd#%d\n", rv, len,
@@ -305,7 +367,7 @@ int main(int argc, char **argv) {
   if (argc > 1) {
     run_as_server = 1;
   }
-  init_shmem_client();
+  init_shmem_common();
 
   // run_server();
 

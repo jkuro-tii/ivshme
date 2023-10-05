@@ -15,6 +15,7 @@
 #include <linux/proc_fs.h>
 #include <linux/fcntl.h>
 #include <linux/file.h>
+#include <linux/poll.h>
 #include <linux/uio.h>
 #include <asm/uaccess.h>
 #include <linux/interrupt.h>
@@ -36,6 +37,14 @@
 #else
 #define KVM_IVSHMEM_DPRINTK(fmt, ...) {}
 #endif
+
+#define SHMEM_IOC_MAGIC 's'
+
+#define SHMEM_IOCWLOCAL 	_IOR(SHMEM_IOC_MAGIC, 1, int)
+#define SHMEM_IOCWREMOTE 	_IOR(SHMEM_IOC_MAGIC, 2, int)
+#define SHMEM_IOCIVPOSN		_IOW(SHMEM_IOC_MAGIC, 3, int)
+#define SHMEM_IOCDORBELL  _IOR(SHMEM_IOC_MAGIC, 4, int)
+
 enum {
 	/* KVM Inter-VM shared memory device register offsets */
 	IntrMask        = 0x00,    /* Interrupt Mask */
@@ -68,6 +77,7 @@ static int local_resource_count;
 static int remote_resource_count;
 static wait_queue_head_t local_data_ready_wait_queue;
 static wait_queue_head_t remote_data_ready_wait_queue;
+static wait_queue_head_t common_wait_queue;
 
 static kvm_ivshmem_device kvm_ivshmem_dev;
 
@@ -78,8 +88,7 @@ static int kvm_ivshmem_release(struct inode *, struct file *);
 static ssize_t kvm_ivshmem_read(struct file *, char *, size_t, loff_t *);
 static ssize_t kvm_ivshmem_write(struct file *, const char *, size_t, loff_t *);
 static loff_t kvm_ivshmem_lseek(struct file * filp, loff_t offset, int origin);
-//                      0                   1                         3         4
-enum ivshmem_ioctl { WAIT_EVENT_LOCAL, WAIT_EVENT_REMOTE, UNUSED, READ_IVPOSN, DOORBELL };
+static unsigned kvm_ivshmem_poll(struct file *filp, struct poll_table_struct *wait);
 
 static const struct file_operations kvm_ivshmem_ops = {
 	.owner   = THIS_MODULE,
@@ -90,6 +99,7 @@ static const struct file_operations kvm_ivshmem_ops = {
 	.write   = kvm_ivshmem_write,
 	.llseek  = kvm_ivshmem_lseek,
 	.release = kvm_ivshmem_release,
+	.poll = kvm_ivshmem_poll,
 };
 
 static struct pci_device_id kvm_ivshmem_id_table[] = {
@@ -122,28 +132,48 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 {
 
 	int rv = 0;
+	unsigned int timeout;
 	uint32_t msg;
 
 	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx", cmd, arg);
 	switch (cmd) {
-		case WAIT_EVENT_LOCAL: // 3
+		case SHMEM_IOCWLOCAL:
 			KVM_IVSHMEM_DPRINTK("sleeping on local resource (cmd = 0x%08x)", cmd);
-			wait_event_interruptible(local_data_ready_wait_queue, (local_resource_count == 1));
-			KVM_IVSHMEM_DPRINTK("waking");
+			if (copy_from_user(&timeout, (void __user *) arg, sizeof(timeout))) {
+				printk(KERN_ERR "KVM_IVSHMEM: SHMEM_IOCWLOCAL: invalid arument");
+				return -EINVAL;
+			}
+
+			timeout = HZ/1000 * timeout;
+			KVM_IVSHMEM_DPRINTK("timeout: %d ms", timeout);
+			rv = wait_event_interruptible_timeout(local_data_ready_wait_queue,
+					(local_resource_count == 1), timeout);
+			KVM_IVSHMEM_DPRINTK("waking up rv:%d", rv);
 			local_resource_count = 0;
 			break;
-		case WAIT_EVENT_REMOTE: // 4
+
+		case SHMEM_IOCWREMOTE:
 			KVM_IVSHMEM_DPRINTK("sleeping on remote resource (cmd = 0x%08x)", cmd);
-			wait_event_interruptible(remote_data_ready_wait_queue, (remote_resource_count == 1));
-			KVM_IVSHMEM_DPRINTK("waking");
+			if (copy_from_user(&timeout, (void __user *) arg, sizeof(timeout))) {
+				printk(KERN_ERR "KVM_IVSHMEM: SHMEM_IOCWREMOTE: invalid arument rv=%d", rv);
+				return -EINVAL;
+			}
+
+			timeout = HZ/1000 * timeout;
+			KVM_IVSHMEM_DPRINTK("timeout: %d ms", timeout);
+			rv = wait_event_interruptible_timeout(remote_data_ready_wait_queue, 
+					(remote_resource_count == 1), timeout);
+			KVM_IVSHMEM_DPRINTK("waking up rv:%d", rv);
 			remote_resource_count = 0;
 			break;
-		case READ_IVPOSN:
+
+		case SHMEM_IOCIVPOSN:
 			msg = readl( kvm_ivshmem_dev.regs + IVPosition);
 			KVM_IVSHMEM_DPRINTK("my posn is 0x%08x", msg);
 			rv = copy_to_user((void __user *)arg, &msg, sizeof(msg));
 			break;
-		case DOORBELL: // 8
+
+		case SHMEM_IOCDORBELL:
 		  int vec = arg & 0xffff;
 
 			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16), vec);
@@ -157,12 +187,31 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 			}
 			writel(arg, kvm_ivshmem_dev.regs + Doorbell);
 			break;
+
 		default:
 			KVM_IVSHMEM_DPRINTK("bad ioctl (0x%08x)", cmd);
 			return -EINVAL;
 	}
 	
-	return 0;
+	return rv;
+}
+
+static unsigned kvm_ivshmem_poll(struct file *filp, struct poll_table_struct *wait)
+{	
+	__poll_t mask = 0;
+
+	poll_wait(filp, &common_wait_queue, wait);
+
+	if (local_resource_count) {
+		local_resource_count = 0;
+    mask |= (POLLIN | POLLRDNORM);
+	}
+
+	if (remote_resource_count) {
+		remote_resource_count = 0;
+		mask |= (POLLOUT | POLLWRNORM);
+	}
+	return mask;
 }
 
 static ssize_t kvm_ivshmem_read(struct file * filp, char * buffer, size_t len,
@@ -266,11 +315,13 @@ static irqreturn_t kvm_ivshmem_interrupt (int irq, void *dev_instance)
 		KVM_IVSHMEM_DPRINTK("local_data_ready_wait_queue");
 		local_resource_count = 1;
 		wake_up_interruptible(&local_data_ready_wait_queue);
+		wake_up_interruptible(&common_wait_queue);
 
 	} else if (irq == irq_local_resource_ready) {
 		KVM_IVSHMEM_DPRINTK("remote_data_ready_wait_queue");
 		remote_resource_count = 1;
 		wake_up_interruptible(&remote_data_ready_wait_queue);
+		wake_up_interruptible(&common_wait_queue);
 
 	} else {
 		printk(KERN_ERR "KVM_IVSHMEM: invalid irq number %d", irq);
@@ -469,6 +520,7 @@ static int kvm_ivshmem_open(struct inode * inode, struct file * filp)
 
 	init_waitqueue_head(&local_data_ready_wait_queue);
 	init_waitqueue_head(&remote_data_ready_wait_queue);
+	init_waitqueue_head(&common_wait_queue);
 	local_resource_count = 1;
 	remote_resource_count = 0;
 
