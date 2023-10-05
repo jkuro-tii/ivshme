@@ -45,15 +45,23 @@ int epollfd;
 
 int server_socket = -1, wayland_socket = -1, shmem_fd = -1;
 int my_vmid = -1, peer_vm_id = -1;
+int run_as_server = 0;
 
-long int pmem_size;
-void *shmem_ptr;
+long int shmem_size;
 
-
+struct
+{
+  volatile int iv_server;
+  volatile int iv_client;
+  volatile int data_len;
+  volatile int msg;
+  volatile void *data;
+} volatile *vm_control;
 struct {
   // struct of 
-}
-shm_msg;
+} shm_msg;
+
+
 
 void report(const char *where, int line, const char *msg, int terminate) {
   char tmp[256];
@@ -67,7 +75,7 @@ void report(const char *where, int line, const char *msg, int terminate) {
   }
 }
 
-int get_pmem_size() {
+int get_shmem_size() {
     int res;
 
     res = lseek(shmem_fd, 0 , SEEK_END);
@@ -158,25 +166,32 @@ int init_shmem_client()
   }
 
   /* Get shared memory */
-  pmem_size = get_pmem_size();
-  if (pmem_size <= 0)
+  shmem_size = get_shmem_size();
+  if (shmem_size <= 0)
   {
     REPORT("No shared memory detected", 1);
   }
-  shmem_ptr = mmap(NULL, pmem_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE, shmem_fd, 0);
-  if (!shmem_ptr)
+  vm_control = mmap(NULL, shmem_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE, shmem_fd, 0);
+  if (!vm_control)
   {
     REPORT("Got NULL pointer from mmap", 1);
   }
-  printf("Shared memory at address %p\n", shmem_ptr);
-  
-  /* get my VM Id */
+  printf("Shared memory at address %p 0x%lx bytes\n", vm_control, shmem_size);
+   
+  /* get my VM Id and store it */
   res = ioctl(shmem_fd, IOCTL_READ_IV_POSN, &my_vmid);
   if (res < 0) {
     REPORT("IOCTL_READ_IV_POS failed", 1);
   }
-  printf("My VM id = 0x%x\n", my_vmid);
+  printf("My VM id = 0x%x running as a ", my_vmid);
   my_vmid = my_vmid << 16;
+  if (run_as_server) {
+    printf("server\n");
+    vm_control->iv_server = my_vmid;
+  } else {
+    printf("client\n");
+    vm_control->iv_client = my_vmid;
+  }
 
   // Allocate data?
 
@@ -277,7 +292,7 @@ void run_server() {
   } /* while(1) */
 }
 
-int main() {
+int main(int argc, char **argv) {
 
   epollfd = epoll_create1(0);
   if (epollfd == -1) {
@@ -287,6 +302,9 @@ int main() {
   // init_server();
   // init_wayland();
 
+  if (argc > 1) {
+    run_as_server = 1;
+  }
   init_shmem_client();
 
   // run_server();
