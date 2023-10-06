@@ -27,8 +27,8 @@
 #define SHMEM_IOCIVPOSN		_IOW(SHMEM_IOC_MAGIC, 3, int)
 #define SHMEM_IOCDORBELL  _IOR(SHMEM_IOC_MAGIC, 4, int)
 
-#define LOCAL_RESOURCE_INT_VEC  (0)
-#define REMOTE_RESOURCE_INT_VEC (1)
+#define REMOTE_RESOURCE_CONSUMED_INT_VEC (0)
+#define LOCAL_RESOURCE_READY_INT_VEC  (1)
 
 #define MAX_EVENTS (1024)
 #define BUFFER_SIZE (1024000)
@@ -160,10 +160,11 @@ int init_wayland() {
   return 0;
 }
 
-void shmem_client_test() {
+void shmem_test() {
 
   int timeout, res;
-  unsigned int tmp;
+  unsigned int irq, data;
+  unsigned int static counter = 0;
   struct pollfd fds = {
     .fd = shmem_fd,
     .events = POLLIN|POLLOUT,
@@ -182,19 +183,43 @@ void shmem_client_test() {
     if (fds.revents & POLLIN) {
       printf("POLLIN: ");
       if (run_as_server) {
-        printf("%02x \n", vm_control->server_data_len);
-        usleep(random() % 3333333);
-        tmp = vm_control->iv_client | REMOTE_RESOURCE_INT_VEC;
-        res = ioctl(shmem_fd, SHMEM_IOCDORBELL, &my_vmid);
-        if (res < 0) {
-          REPORT("SHMEM_IOCDORBELL failed", 1);
-        }
-        } else {
-
+        data = vm_control->server_data_len;
+        vm_control->server_data_len = -1;
+        irq = vm_control->iv_client;
+      } else {  // client
+        data = vm_control->client_data_len;
+        vm_control->client_data_len = -1;
+        irq = vm_control->iv_server;
+      }
+      irq |= REMOTE_RESOURCE_CONSUMED_INT_VEC;
+      printf(" received %02x \n", data);
+      usleep(random() % 3333333);
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, &irq);
+      if (res < 0) {
+        REPORT("SHMEM_IOCDORBELL failed", 1);
       }
     }
+
     if (fds.revents & POLLOUT) {
       printf("POLLOUT");
+
+      if (run_as_server) {
+        vm_control->client_data_len = counter;
+        irq = vm_control->iv_server;
+      } else { // client
+        vm_control->server_data_len = counter;
+        irq = vm_control->iv_server;
+      }
+      irq |= LOCAL_RESOURCE_READY_INT_VEC;
+      printf(" sending %02x \n", counter);
+      counter++;
+      usleep(random() % 3333333);
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, &irq);
+      if (res < 0) {
+        REPORT("SHMEM_IOCDORBELL failed", 1);
+      }
+
+
     }
 
 
@@ -245,7 +270,7 @@ int init_shmem_common()
     vm_control->iv_client = my_vmid;
   }
 
-  shmem_client_test();
+  shmem_test();
   return 0;
 }
 

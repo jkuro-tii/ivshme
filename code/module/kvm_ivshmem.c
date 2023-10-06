@@ -25,8 +25,8 @@
 
 #define KVM_IVSHMEM_DEVICE_MINOR_NUM 0
 #define VECTORS_COUNT (2)
-#define LOCAL_RESOURCE_INT_VEC  (0)
-#define REMOTE_RESOURCE_INT_VEC (1)
+#define REMOTE_RESOURCE_CONSUMED_INT_VEC (0)
+#define LOCAL_RESOURCE_READY_INT_VEC  	 (1)
 
 #define DEBUG
 #ifdef DEBUG
@@ -177,9 +177,9 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 		  int vec = arg & 0xffff;
 
 			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16), vec);
-			if (vec == LOCAL_RESOURCE_INT_VEC) {
+			if (vec == LOCAL_RESOURCE_READY_INT_VEC) {
         local_resource_count = 0;				
-			} else if (vec == REMOTE_RESOURCE_INT_VEC) {
+			} else if (vec == REMOTE_RESOURCE_CONSUMED_INT_VEC) {
 				remote_resource_count = 0;
 			} else {
 				KVM_IVSHMEM_DPRINTK("invalid interrupt vector %d", vec);
@@ -204,12 +204,12 @@ static unsigned kvm_ivshmem_poll(struct file *filp, struct poll_table_struct *wa
 
 	if (local_resource_count) {
 		local_resource_count = 0;
-    mask |= (POLLIN | POLLRDNORM);
+		mask |= (POLLOUT | POLLWRNORM);
 	}
 
 	if (remote_resource_count) {
 		remote_resource_count = 0;
-		mask |= (POLLOUT | POLLWRNORM);
+    mask |= (POLLIN | POLLRDNORM);
 	}
 	return mask;
 }
@@ -311,16 +311,16 @@ static irqreturn_t kvm_ivshmem_interrupt (int irq, void *dev_instance)
 
 	KVM_IVSHMEM_DPRINTK("irq %d", irq);
 
-	if (irq == irq_remote_resource_ready) {
-		KVM_IVSHMEM_DPRINTK("local_data_ready_wait_queue");
-		local_resource_count = 1;
-		wake_up_interruptible(&local_data_ready_wait_queue);
-		wake_up_interruptible(&common_wait_queue);
-
-	} else if (irq == irq_local_resource_ready) {
+	if (irq == irq_local_resource_ready) {
 		KVM_IVSHMEM_DPRINTK("remote_data_ready_wait_queue");
 		remote_resource_count = 1;
 		wake_up_interruptible(&remote_data_ready_wait_queue);
+		wake_up_interruptible(&common_wait_queue);
+
+	} else if (irq == irq_remote_resource_ready) {
+		KVM_IVSHMEM_DPRINTK("local_data_ready_wait_queue");
+		local_resource_count = 1;
+		wake_up_interruptible(&local_data_ready_wait_queue);
 		wake_up_interruptible(&common_wait_queue);
 
 	} else {
@@ -370,12 +370,11 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info, int nvector
 			printk(KERN_INFO "KVM_IVSHMEM: allocated irq #%d", n);
 		}
 		// vector 0 is used for managing local data/resources
-		if (i == LOCAL_RESOURCE_INT_VEC) {
+		if (i == LOCAL_RESOURCE_READY_INT_VEC) {
 			irq_local_resource_ready = n;
 			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for local resources", n);
 		// vector 1 is used for managing remote data/resources
-		} else if (i == REMOTE_RESOURCE_INT_VEC)
-		{
+		} else if (i == REMOTE_RESOURCE_CONSUMED_INT_VEC) {
 			irq_remote_resource_ready = n;
 			KVM_IVSHMEM_DPRINTK("Using interrupt #%d for remote resources", n);
 		} else {
