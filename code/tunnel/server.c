@@ -212,10 +212,10 @@ void shmem_test() {
         irq = vm_control->iv_server;
       }
       irq |= LOCAL_RESOURCE_READY_INT_VEC;
-      printf(" sending %02x \n", counter);
+      printf(" sending %02x irq=0x%x\n", counter, irq);
       counter++;
       usleep(random() % 3333333);
-      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, &irq);
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, irq);
       if (res < 0) {
         REPORT("SHMEM_IOCDORBELL failed", 1);
       }
