@@ -179,7 +179,7 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 				return -EFAULT;
 			}
 			vec = data & 0xffff;
-			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (data >> 16), vec);
+			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%x on vector 0x%x", (data >> 16), vec);
 			if (vec == LOCAL_RESOURCE_READY_INT_VEC) {
         local_resource_count = 0;				
 			} else if (vec == REMOTE_RESOURCE_CONSUMED_INT_VEC) {
