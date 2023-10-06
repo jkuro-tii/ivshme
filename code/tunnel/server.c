@@ -164,7 +164,7 @@ int init_wayland() {
 void shmem_test() {
 
   int timeout, res;
-  unsigned int irq, data;
+  unsigned int iv, data;
   unsigned int static counter = 0;
   struct pollfd fds = {
     .fd = shmem_fd,
@@ -186,16 +186,16 @@ void shmem_test() {
       if (run_as_server) {
         data = vm_control->server_data_len;
         vm_control->server_data_len = -1;
-        irq = vm_control->iv_client;
+        iv = vm_control->iv_client;
       } else {  // client
         data = vm_control->client_data_len;
         vm_control->client_data_len = -1;
-        irq = vm_control->iv_server;
+        iv = vm_control->iv_server;
       }
-      irq |= REMOTE_RESOURCE_CONSUMED_INT_VEC;
+      iv |= REMOTE_RESOURCE_CONSUMED_INT_VEC;
       printf(" received %02x \n", data);
       usleep(random() % 3333333);
-      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, irq);
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       if (res < 0) {
         REPORT("SHMEM_IOCDORBELL failed", 1);
       }
@@ -206,21 +206,19 @@ void shmem_test() {
 
       if (run_as_server) {
         vm_control->client_data_len = counter;
-        irq = vm_control->iv_server;
+        iv = vm_control->iv_client;
       } else { // client
         vm_control->server_data_len = counter;
-        irq = vm_control->iv_server;
+        iv = vm_control->iv_server;
       }
-      irq |= LOCAL_RESOURCE_READY_INT_VEC;
-      printf(" sending %02x &irq=%p\n", counter, &irq);
+      iv |= LOCAL_RESOURCE_READY_INT_VEC;
+      printf(" sending %02x\n", counter);
       counter++;
       usleep(random() % 3333333);
-      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, irq);
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       if (res < 0) {
         REPORT("SHMEM_IOCDORBELL failed", 1);
       }
-
-
     }
 
 
@@ -261,7 +259,7 @@ int init_shmem_common()
   if (res < 0) {
     REPORT("SHMEM_IOCIVPOSN failed", 1);
   }
-  printf("My VM id = 0x%x running as a %x", my_vmid, SHMEM_IOCIVPOSN);
+  printf("My VM id = 0x%x running as a ", my_vmid);
   my_vmid = my_vmid << 16;
   if (run_as_server) {
     printf("server\n");
