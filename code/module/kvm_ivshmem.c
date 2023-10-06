@@ -135,7 +135,7 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 	unsigned int timeout;
 	uint32_t msg;
 
-	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx", cmd, arg);
+	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx SHMEM_IOCIVPOSN=0x%x", cmd, arg, SHMEM_IOCIVPOSN);
 	switch (cmd) {
 		case SHMEM_IOCWLOCAL:
 			KVM_IVSHMEM_DPRINTK("sleeping on local resource (cmd = 0x%08x)", cmd);
