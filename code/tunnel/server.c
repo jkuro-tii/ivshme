@@ -212,7 +212,7 @@ void shmem_test() {
         irq = vm_control->iv_server;
       }
       irq |= LOCAL_RESOURCE_READY_INT_VEC;
-      printf(" sending %02x irq=0x%x\n", counter, irq);
+      printf(" sending %02x &irq=%p\n", counter, &irq);
       counter++;
       usleep(random() % 3333333);
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, irq);
