@@ -135,7 +135,7 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 	unsigned int timeout;
 	uint32_t msg;
 
-	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx SHMEM_IOCIVPOSN=0x%x", cmd, arg, SHMEM_IOCIVPOSN);
+	KVM_IVSHMEM_DPRINTK("ioctl: cmd=0x%x args is 0x%lx", cmd, arg);
 	switch (cmd) {
 		case SHMEM_IOCWLOCAL:
 			KVM_IVSHMEM_DPRINTK("sleeping on local resource (cmd = 0x%08x)", cmd);
@@ -174,8 +174,12 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 			break;
 
 		case SHMEM_IOCDORBELL:
-		  int vec = arg & 0xffff;
-
+		  unsigned int vec;
+			if (copy_from_user(&vec, arg, sizeof(vec))) {
+				return -EFAULT;
+			}
+			vec = vec & 0xffff;
+			
 			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16), vec);
 			if (vec == LOCAL_RESOURCE_READY_INT_VEC) {
         local_resource_count = 0;				
