@@ -22,6 +22,7 @@
 
 #define SHM_DEVICE_FN ("/dev/ivshmem")
 #define SHMEM_IOC_MAGIC 's'
+
 #define SHMEM_IOCWLOCAL 	_IOR(SHMEM_IOC_MAGIC, 1, int)
 #define SHMEM_IOCWREMOTE 	_IOR(SHMEM_IOC_MAGIC, 2, int)
 #define SHMEM_IOCIVPOSN		_IOW(SHMEM_IOC_MAGIC, 3, int)
