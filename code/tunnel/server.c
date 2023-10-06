@@ -260,7 +260,7 @@ int init_shmem_common()
   if (res < 0) {
     REPORT("SHMEM_IOCIVPOSN failed", 1);
   }
-  printf("My VM id = 0x%x running as a ", my_vmid);
+  printf("My VM id = 0x%x running as a %x", my_vmid, SHMEM_IOCIVPOSN);
   my_vmid = my_vmid << 16;
   if (run_as_server) {
     printf("server\n");
