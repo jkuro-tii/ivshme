@@ -195,7 +195,7 @@ void shmem_test() {
       irq |= REMOTE_RESOURCE_CONSUMED_INT_VEC;
       printf(" received %02x \n", data);
       usleep(random() % 3333333);
-      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, &irq);
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, irq);
       if (res < 0) {
         REPORT("SHMEM_IOCDORBELL failed", 1);
       }
