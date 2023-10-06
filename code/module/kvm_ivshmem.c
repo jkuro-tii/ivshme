@@ -175,11 +175,11 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 
 		case SHMEM_IOCDORBELL:
 		  unsigned int vec;
-			if (copy_from_user(&vec, arg, sizeof(vec))) {
+			if (copy_from_user(&vec, (void __user *)arg, sizeof(vec))) {
 				return -EFAULT;
 			}
 			vec = vec & 0xffff;
-			
+
 			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16), vec);
 			if (vec == LOCAL_RESOURCE_READY_INT_VEC) {
         local_resource_count = 0;				
