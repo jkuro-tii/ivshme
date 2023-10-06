@@ -174,12 +174,9 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 			break;
 
 		case SHMEM_IOCDORBELL:
-		  unsigned int data, vec;
-			if (copy_from_user(&data, (void __user *)arg, sizeof(vec))) {
-				return -EFAULT;
-			}
-			vec = data & 0xffff;
-			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%x on vector 0x%x", (data >> 16), vec);
+		  unsigned int vec;
+			vec = arg & 0xffff;
+			KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%x on vector 0x%x", (arg >> 16), vec);
 			if (vec == LOCAL_RESOURCE_READY_INT_VEC) {
         local_resource_count = 0;				
 			} else if (vec == REMOTE_RESOURCE_CONSUMED_INT_VEC) {
@@ -188,7 +185,7 @@ static long kvm_ivshmem_ioctl(struct file * filp,
 				KVM_IVSHMEM_DPRINTK("invalid interrupt vector %d", vec);
 				return -EINVAL;
 			}
-			writel(vec, kvm_ivshmem_dev.regs + Doorbell);
+			writel(arg, kvm_ivshmem_dev.regs + Doorbell);
 			break;
 
 		default:
