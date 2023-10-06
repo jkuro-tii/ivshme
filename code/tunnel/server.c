@@ -6,9 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/epoll.h>
-#include <sys/poll.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/poll.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -23,18 +23,18 @@
 #define SHM_DEVICE_FN ("/dev/ivshmem")
 #define SHMEM_IOC_MAGIC 's'
 
-#define SHMEM_IOCWLOCAL 	_IOR(SHMEM_IOC_MAGIC, 1, int)
-#define SHMEM_IOCWREMOTE 	_IOR(SHMEM_IOC_MAGIC, 2, int)
-#define SHMEM_IOCIVPOSN		_IOW(SHMEM_IOC_MAGIC, 3, int)
-#define SHMEM_IOCDORBELL  _IOR(SHMEM_IOC_MAGIC, 4, int)
+#define SHMEM_IOCWLOCAL _IOR(SHMEM_IOC_MAGIC, 1, int)
+#define SHMEM_IOCWREMOTE _IOR(SHMEM_IOC_MAGIC, 2, int)
+#define SHMEM_IOCIVPOSN _IOW(SHMEM_IOC_MAGIC, 3, int)
+#define SHMEM_IOCDORBELL _IOR(SHMEM_IOC_MAGIC, 4, int)
 
 #define REMOTE_RESOURCE_CONSUMED_INT_VEC (0)
-#define LOCAL_RESOURCE_READY_INT_VEC  (1)
+#define LOCAL_RESOURCE_READY_INT_VEC (1)
 
 #define MAX_EVENTS (1024)
 #define BUFFER_SIZE (1024000)
 
-#define SHMEM_BUFFER_SIZE (1024000*2)
+#define SHMEM_BUFFER_SIZE (1024000 * 2)
 
 /* TODO: remove */
 #define stderr stdout
@@ -59,8 +59,7 @@ int run_as_server = 0;
 
 long int shmem_size;
 
-struct
-{
+struct {
   volatile int iv_server;
   volatile int iv_client;
   volatile int server_data_len;
@@ -69,7 +68,7 @@ struct
   volatile unsigned char client_data[SHMEM_BUFFER_SIZE];
 } volatile *vm_control;
 struct {
-  // struct of 
+  // struct of
 } shm_msg;
 
 void report(const char *where, int line, const char *msg, int terminate) {
@@ -85,15 +84,14 @@ void report(const char *where, int line, const char *msg, int terminate) {
 }
 
 int get_shmem_size() {
-    int res;
+  int res;
 
-    res = lseek(shmem_fd, 0 , SEEK_END);
-    if (res < 0) 
-    {
-      REPORT("seek", 1);
-    }
-    lseek(shmem_fd, 0 , SEEK_SET);
-    return res;
+  res = lseek(shmem_fd, 0, SEEK_END);
+  if (res < 0) {
+    REPORT("seek", 1);
+  }
+  lseek(shmem_fd, 0, SEEK_SET);
+  return res;
 }
 
 int init_server() {
@@ -167,12 +165,9 @@ void shmem_test() {
   unsigned int iv, data;
   unsigned int static counter = 0;
   struct pollfd fds = {
-    .fd = shmem_fd,
-    .events = POLLIN|POLLOUT,
-    .revents = 0
-  };
+      .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
 
-  // Ping 
+  // Ping
   // timeout = SERVER_TIMEOUT*0;
   // res = ioctl(shmem_fd, SHMEM_IOCWREMOTE, &timeout);
   // printf("SHMEM_IOCWREMOTE: %d\n", res);
@@ -187,7 +182,7 @@ void shmem_test() {
         data = vm_control->server_data_len;
         vm_control->server_data_len = -1;
         iv = vm_control->iv_client;
-      } else {  // client
+      } else { // client
         data = vm_control->client_data_len;
         vm_control->client_data_len = -1;
         iv = vm_control->iv_server;
@@ -221,16 +216,13 @@ void shmem_test() {
       }
     }
 
-
     // ?read -> wait, read
     // ?write -> wait, write
 
-  } while(1);
+  } while (1);
 }
 
-
-int init_shmem_common()
-{
+int init_shmem_common() {
   int res = -1;
 
   printf("Waiting for devices setup...\n");
@@ -243,17 +235,16 @@ int init_shmem_common()
 
   /* Get shared memory */
   shmem_size = get_shmem_size();
-  if (shmem_size <= 0)
-  {
+  if (shmem_size <= 0) {
     REPORT("No shared memory detected", 1);
   }
-  vm_control = mmap(NULL, shmem_size, PROT_READ|PROT_WRITE, MAP_SHARED|MAP_NORESERVE, shmem_fd, 0);
-  if (!vm_control)
-  {
+  vm_control = mmap(NULL, shmem_size, PROT_READ | PROT_WRITE,
+                    MAP_SHARED | MAP_NORESERVE, shmem_fd, 0);
+  if (!vm_control) {
     REPORT("Got NULL pointer from mmap", 1);
   }
   printf("Shared memory at address %p 0x%lx bytes\n", vm_control, shmem_size);
-   
+
   /* get my VM Id and store it */
   res = ioctl(shmem_fd, SHMEM_IOCIVPOSN, &my_vmid);
   if (res < 0) {
@@ -278,7 +269,7 @@ void shmem_server_test() {
   int timeout, res;
 
   // Ping
-  timeout = SERVER_TIMEOUT*0;
+  timeout = SERVER_TIMEOUT * 0;
   res = ioctl(shmem_fd, SHMEM_IOCWREMOTE, &timeout);
   printf("SHMEM_IOCWREMOTE: %d\n", res);
   // Timeout?
@@ -303,13 +294,12 @@ void run_server() {
     }
 
     for (n = 0; n < nfds; n++) {
-      
+
       fprintf(stderr, "%d: ", __LINE__);
       fprintf(stderr, "Event 0x%x on fd %d\n", events[n].events,
               events[n].data.fd);
 
-      if (events[n].events & (EPOLLHUP | EPOLLERR))
-      {
+      if (events[n].events & (EPOLLHUP | EPOLLERR)) {
         close(events[n].data.fd);
         continue;
       }
