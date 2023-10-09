@@ -430,7 +430,7 @@ static int kvm_ivshmem_probe_device(struct pci_dev *pdev,
 		printk(KERN_ERR "KVM_IVSHMEM: cannot ioremap");
 	} else {
 		printk(KERN_INFO "KVM_IVSHMEM: io_base = %p",io_base);
-		memset_io(io_base, kvm_ivshmem_dev.ioaddr_size, 0);
+		memset_io(io_base, kvm_ivshmem_dev.ioaddr_size, 0x13);
 		iounmap(io_base);
 	}
 
