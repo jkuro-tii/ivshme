@@ -223,7 +223,7 @@ void init_shmem_sync() {
   unsigned int iv, data;
   unsigned int static counter = 0;
   struct pollfd fds = {
-      .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
+      .fd = shmem_fd, .events = POLLIN, .revents = 0};
 
   printf("Syncing ");
   do {
