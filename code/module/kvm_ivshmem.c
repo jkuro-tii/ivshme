@@ -423,6 +423,16 @@ static int kvm_ivshmem_probe_device(struct pci_dev *pdev,
   printk(KERN_INFO "KVM_IVSHMEM: ioaddr = 0x%x ioaddr_size = 0x%x",
          kvm_ivshmem_dev.ioaddr, kvm_ivshmem_dev.ioaddr_size);
 
+	/* Clear the the shared memory*/
+	void *io_base = ioremap(kvm_ivshmem_dev.ioaddr, kvm_ivshmem_dev.ioaddr_size);
+	if (io_base == NULL) {
+		printk(KERN_ERR "KVM_IVSHMEM: cannot ioremap");
+	} else {
+		printk(KERN_INFO "KVM_IVSHMEM: io_base = %p",io_base);
+		memset(io_base, kvm_ivshmem_dev.ioaddr_size, 0);
+		iounmap(io_base);
+	}
+
   kvm_ivshmem_dev.regaddr = pci_resource_start(pdev, 0);
   kvm_ivshmem_dev.reg_size = pci_resource_len(pdev, 0);
   kvm_ivshmem_dev.regs = pci_iomap(pdev, 0, 0x100);
