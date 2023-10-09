@@ -172,7 +172,7 @@ void shmem_test() {
 
   int timeout, res;
   unsigned int iv, data;
-  unsigned int static counter = 0, do_once;
+  unsigned int static counter = 0;
   struct pollfd fds = {
       .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
 
@@ -184,9 +184,6 @@ void shmem_test() {
   // Wait for pong
   init_shmem_sync();
   printf("my_vmid=0x%x my_shm_data=%p\n", my_vmid, my_shm_data);
-  if (!run_as_server) {
-    do_once = 1;
-  }
   do {
     res = poll(&fds, 1, 333);
     if (res && (fds.revents & POLLIN)) {
@@ -211,12 +208,6 @@ void shmem_test() {
       printf(" sending %02x\n", counter);
       counter++;
       usleep(random() % 3333333);
-
-      if (do_once) {
-        peer_shm_data->len = 0;  
-        do_once = 0;
-      }
-
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       if (res < 0) {
         REPORT("SHMEM_IOCDORBELL failed", 1);
@@ -264,7 +255,7 @@ void init_shmem_sync() {
         break;
 
   } while (1);
-  
+
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
   printf(" done.\n");
 }
