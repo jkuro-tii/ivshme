@@ -182,13 +182,14 @@ void shmem_test() {
   // Timeout?
   // Wait for pong
   init_shmem_sync();
+  printf("my_vmid=0x%x my_shm_data=%p", my_vmid, my_shm_data);
   do {
     res = poll(&fds, 1, 0);
     if (fds.revents & POLLIN) {
       printf("POLLIN: ");
 
-      data = peer_shm_data->len;
-      peer_shm_data->len = -1;
+      data = my_shm_data->len;
+      my_shm_data->len = -1;
       iv = peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC;
       printf(" received %02x \n", data);
       usleep(random() % 3333333);
