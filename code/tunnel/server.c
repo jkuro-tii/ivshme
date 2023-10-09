@@ -78,7 +78,7 @@ struct {
   // volatile unsigned char client_data[SHMEM_BUFFER_SIZE];
 } *vm_control;
 
-void init_shmem_sync();
+void shmem_sync();
 
 void report(const char *where, int line, const char *msg, int terminate) {
   char tmp[256];
@@ -176,7 +176,7 @@ void shmem_test() {
   struct pollfd fds = {
       .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
 
-  init_shmem_sync();
+  shmem_sync();
 
   counter = my_vmid;
 
@@ -217,7 +217,7 @@ void shmem_test() {
   } while (1);
 }
 
-void init_shmem_sync() {
+void shmem_sync() {
   int timeout, res;
   unsigned int iv, data;
   unsigned int static counter = 0;
@@ -255,7 +255,7 @@ void init_shmem_sync() {
   printf(" done.\n");
 }
 
-int init_shmem_common() {
+int shmem_init() {
   int res = -1;
 
   printf("Waiting for devices setup...\n");
@@ -301,8 +301,9 @@ int init_shmem_common() {
     printf("client\n");
     vm_control->iv_client = my_vmid;
   }
-
-  shmem_test();
+  
+  // shmem_test();
+  shmem_sync();
   return 0;
 }
 
@@ -408,15 +409,16 @@ int main(int argc, char **argv) {
     REPORT("init_server: epoll_create1", 1);
   }
 
-  // init_server();
-  // init_wayland();
-
   if (argc > 1) {
     run_as_server = 1;
   }
-  init_shmem_common();
+  shmem_init();
 
-  // run_server();
+  init_server();
+  init_wayland();
+
+
+  run_server();
 
   return 0;
 }
