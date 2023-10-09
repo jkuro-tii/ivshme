@@ -231,10 +231,10 @@ void init_shmem_sync() {
   else
     vm_control->iv_server = 0;
 
-  printf("Syncing ");
+  printf("Syncing\n");
   do {
-      usleep(random() % 3333333);
-      printf(".");
+      usleep(random() % 333333);
+      printf("#\n");
       if (run_as_server) {
         vm_control->iv_server = my_vmid;
         peer_vm_id = vm_control->iv_client;
