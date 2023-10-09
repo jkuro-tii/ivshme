@@ -226,20 +226,29 @@ void init_shmem_sync() {
   struct pollfd fds = {
       .fd = shmem_fd, .events = POLLIN, .revents = 0};
 
+  if (run_as_server)
+    vm_control->iv_client = 0;
+  else
+    vm_control->iv_server = 0;
+
   printf("Syncing ");
   do {
       usleep(random() % 3333333);
       printf(".");
-      peer_vm_id = run_as_server ? vm_control->iv_client: vm_control->iv_server;
+      if (run_as_server) {
+        vm_control->iv_server = my_vmid;
+        peer_vm_id = vm_control->iv_client;
+      }
+      else {
+        vm_control->iv_client = my_vmid;
+        peer_vm_id = vm_control->iv_server;
+      }
       iv = peer_vm_id;
       if (!iv)
         continue;
       iv |= LOCAL_RESOURCE_READY_INT_VEC;
       peer_shm_data->len = 0;
-      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
-      if (res < 0) {
-        REPORT("SHMEM_IOCDORBELL failed", 1);
-      }
+      ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       res = poll(&fds, 1, 300);
       if ((res > 0) && (fds.revents & POLLIN))
         break;
