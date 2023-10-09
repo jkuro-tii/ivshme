@@ -172,17 +172,14 @@ void shmem_test() {
 
   int timeout, res;
   unsigned int iv, data;
-  unsigned int static counter = 0;
+  unsigned int counter;
   struct pollfd fds = {
       .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
 
-  // Ping
-  // timeout = SERVER_TIMEOUT*0;
-  // res = ioctl(shmem_fd, SHMEM_IOCWREMOTE, &timeout);
-  // printf("SHMEM_IOCWREMOTE: %d\n", res);
-  // Timeout?
-  // Wait for pong
   init_shmem_sync();
+
+  counter = my_vmid;
+  
   printf("my_vmid=0x%x my_shm_data=%p\n", my_vmid, my_shm_data);
   do {
     res = poll(&fds, 1, 333);
