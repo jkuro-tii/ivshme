@@ -179,7 +179,7 @@ void shmem_test() {
   init_shmem_sync();
 
   counter = my_vmid;
-  
+
   printf("my_vmid=0x%x my_shm_data=%p\n", my_vmid, my_shm_data);
   do {
     res = poll(&fds, 1, 333);
@@ -229,10 +229,9 @@ void init_shmem_sync() {
   else
     vm_control->iv_server = 0;
 
-  printf("Syncing\n");
+  printf("Syncing...\n");
   do {
       usleep(random() % 333333);
-      printf("#\n");
       if (run_as_server) {
         vm_control->iv_server = my_vmid;
         peer_vm_id = vm_control->iv_client;
@@ -250,7 +249,6 @@ void init_shmem_sync() {
       res = poll(&fds, 1, 300);
       if ((res > 0) && (fds.revents & POLLIN))
         break;
-
   } while (1);
 
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
