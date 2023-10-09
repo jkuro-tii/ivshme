@@ -200,7 +200,7 @@ void shmem_test() {
       }
     }
 
-    if ((res && (fds.revents & POLLOUT)) || do_once) {
+    if (res && (fds.revents & POLLOUT)) {
       printf("POLLOUT");
 
       peer_shm_data->len = counter;
