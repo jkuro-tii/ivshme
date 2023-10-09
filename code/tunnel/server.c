@@ -239,7 +239,9 @@ void init_shmem_sync() {
       if (res < 0) {
         REPORT("SHMEM_IOCDORBELL failed", 1);
       }
-      poll(&fds, 1, 300);
+      res = poll(&fds, 1, 300);
+      if ((res > 0) && (fds.revents & POLLIN))
+        break;
 
   } while (1);
   printf(" done.\n");
