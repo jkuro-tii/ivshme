@@ -182,7 +182,7 @@ void shmem_test() {
   // Timeout?
   // Wait for pong
   init_shmem_sync();
-  printf("my_vmid=0x%x my_shm_data=%p", my_vmid, my_shm_data);
+  printf("my_vmid=0x%x my_shm_data=%p\n", my_vmid, my_shm_data);
   do {
     res = poll(&fds, 1, 0);
     if (fds.revents & POLLIN) {
