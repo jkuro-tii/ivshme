@@ -424,7 +424,7 @@ static int kvm_ivshmem_probe_device(struct pci_dev *pdev,
          kvm_ivshmem_dev.ioaddr, kvm_ivshmem_dev.ioaddr_size);
 
 	/* Clear the the shared memory*/
-	memset_io(kvm_ivshmem_dev.base_addr, kvm_ivshmem_dev.ioaddr_size, 0x13);
+	memset_io(kvm_ivshmem_dev.base_addr, kvm_ivshmem_dev.ioaddr_size, 0);
 
   kvm_ivshmem_dev.regaddr = pci_resource_start(pdev, 0);
   kvm_ivshmem_dev.reg_size = pci_resource_len(pdev, 0);
