@@ -391,7 +391,6 @@ static int kvm_ivshmem_probe_device(struct pci_dev *pdev,
                                     const struct pci_device_id *ent) {
 
   int result;
-	void *io_base;
 
   KVM_IVSHMEM_DPRINTK("Probing for KVM_IVSHMEM Device");
 
@@ -425,14 +424,7 @@ static int kvm_ivshmem_probe_device(struct pci_dev *pdev,
          kvm_ivshmem_dev.ioaddr, kvm_ivshmem_dev.ioaddr_size);
 
 	/* Clear the the shared memory*/
-	io_base = /*ioremap*/pci_iomap(kvm_ivshmem_dev.ioaddr, kvm_ivshmem_dev.ioaddr_size);
-	if (io_base == NULL) {
-		printk(KERN_ERR "KVM_IVSHMEM: cannot ioremap");
-	} else {
-		printk(KERN_INFO "KVM_IVSHMEM: io_base = %p",io_base);
-		memset_io(io_base, kvm_ivshmem_dev.ioaddr_size, 0);
-		pci_iounmap(io_base);
-	}
+	memset_io(kvm_ivshmem_dev.base_addr, kvm_ivshmem_dev.ioaddr_size, 0x13);
 
   kvm_ivshmem_dev.regaddr = pci_resource_start(pdev, 0);
   kvm_ivshmem_dev.reg_size = pci_resource_len(pdev, 0);
