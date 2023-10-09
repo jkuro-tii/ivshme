@@ -27,6 +27,7 @@
 #define SHMEM_IOCWREMOTE _IOR(SHMEM_IOC_MAGIC, 2, int)
 #define SHMEM_IOCIVPOSN _IOW(SHMEM_IOC_MAGIC, 3, int)
 #define SHMEM_IOCDORBELL _IOR(SHMEM_IOC_MAGIC, 4, int)
+#define SHMEM_IOCRESTART _IOR(SHMEM_IOC_MAGIC, 5, int)
 
 #define REMOTE_RESOURCE_CONSUMED_INT_VEC (0)
 #define LOCAL_RESOURCE_READY_INT_VEC (1)
@@ -263,6 +264,8 @@ void init_shmem_sync() {
         break;
 
   } while (1);
+  
+  ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
   printf(" done.\n");
 }
 

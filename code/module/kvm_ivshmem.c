@@ -43,6 +43,7 @@
 #define SHMEM_IOCWREMOTE _IOR(SHMEM_IOC_MAGIC, 2, int)
 #define SHMEM_IOCIVPOSN _IOW(SHMEM_IOC_MAGIC, 3, int)
 #define SHMEM_IOCDORBELL _IOR(SHMEM_IOC_MAGIC, 4, int)
+#define SHMEM_IOCRESTART _IOR(SHMEM_IOC_MAGIC, 5, int)
 
 enum {
   /* KVM Inter-VM shared memory device register offsets */
@@ -187,6 +188,10 @@ static long kvm_ivshmem_ioctl(struct file *filp, unsigned int cmd,
     }
     writel(arg, kvm_ivshmem_dev.regs + Doorbell);
     break;
+
+  case SHMEM_IOCRESTART:
+		local_resource_count = 1;
+		break;
 
   default:
     KVM_IVSHMEM_DPRINTK("bad ioctl (0x%08x)", cmd);
