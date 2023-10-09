@@ -51,10 +51,16 @@
   { report(__FUNCTION__, __LINE__, msg, terminate); }
 
 struct epoll_event ev, events[MAX_EVENTS];
+typedef struct  {
+  volatile int len;
+  volatile unsigned char data[SHMEM_BUFFER_SIZE];
+} volatile vm_data;
+
 int epollfd;
 
 int server_socket = -1, wayland_socket = -1, shmem_fd = -1;
-int my_vmid = -1, peer_vm_id = -1;
+int my_vmid = -1, peer_vm_id = -1, shmem_synced = 0;
+vm_data *my_shm_data = NULL, *peer_shm_data = NULL;
 int run_as_server = 0;
 
 long int shmem_size;
@@ -62,14 +68,16 @@ long int shmem_size;
 struct {
   volatile int iv_server;
   volatile int iv_client;
-  volatile int server_data_len;
-  volatile int client_data_len;
-  volatile unsigned char server_data[SHMEM_BUFFER_SIZE];
-  volatile unsigned char client_data[SHMEM_BUFFER_SIZE];
-} volatile *vm_control;
-struct {
-  // struct of
-} shm_msg;
+  volatile vm_data server_data;
+  volatile vm_data client_data;
+
+  // volatile int server_data_len;
+  // volatile unsigned char server_data[SHMEM_BUFFER_SIZE];
+  // volatile int client_data_len;
+  // volatile unsigned char client_data[SHMEM_BUFFER_SIZE];
+} *vm_control;
+
+void init_shmem_sync();
 
 void report(const char *where, int line, const char *msg, int terminate) {
   char tmp[256];
@@ -173,21 +181,15 @@ void shmem_test() {
   // printf("SHMEM_IOCWREMOTE: %d\n", res);
   // Timeout?
   // Wait for pong
-
+  init_shmem_sync();
   do {
     res = poll(&fds, 1, 0);
     if (fds.revents & POLLIN) {
       printf("POLLIN: ");
-      if (run_as_server) {
-        data = vm_control->server_data_len;
-        vm_control->server_data_len = -1;
-        iv = vm_control->iv_client;
-      } else { // client
-        data = vm_control->client_data_len;
-        vm_control->client_data_len = -1;
-        iv = vm_control->iv_server;
-      }
-      iv |= REMOTE_RESOURCE_CONSUMED_INT_VEC;
+
+      data = peer_shm_data->len;
+      peer_shm_data->len = -1;
+      iv = peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC;
       printf(" received %02x \n", data);
       usleep(random() % 3333333);
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
@@ -199,14 +201,8 @@ void shmem_test() {
     if (fds.revents & POLLOUT) {
       printf("POLLOUT");
 
-      if (run_as_server) {
-        vm_control->client_data_len = counter;
-        iv = vm_control->iv_client;
-      } else { // client
-        vm_control->server_data_len = counter;
-        iv = vm_control->iv_server;
-      }
-      iv |= LOCAL_RESOURCE_READY_INT_VEC;
+      peer_shm_data->len = counter;
+      iv = peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC;
       printf(" sending %02x\n", counter);
       counter++;
       usleep(random() % 3333333);
@@ -222,11 +218,39 @@ void shmem_test() {
   } while (1);
 }
 
+void init_shmem_sync() {
+  int timeout, res;
+  unsigned int iv, data;
+  unsigned int static counter = 0;
+  struct pollfd fds = {
+      .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
+
+  printf("Syncing ");
+  do {
+      usleep(random() % 3333333);
+      printf(".");
+      peer_vm_id = run_as_server ? vm_control->iv_client: vm_control->iv_server;
+      iv = peer_vm_id;
+      if (!iv)
+        continue;
+      iv |= LOCAL_RESOURCE_READY_INT_VEC;
+      peer_shm_data->len = 0;
+      res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
+      if (res < 0) {
+        REPORT("SHMEM_IOCDORBELL failed", 1);
+      }
+      poll(&fds, 1, 300);
+
+  } while (1);
+  printf(" done.\n");
+}
+
 int init_shmem_common() {
   int res = -1;
 
   printf("Waiting for devices setup...\n");
   sleep(1);
+
   /* Open shared memory */
   shmem_fd = open(SHM_DEVICE_FN, O_RDWR);
   if (shmem_fd < 0) {
@@ -244,6 +268,14 @@ int init_shmem_common() {
     REPORT("Got NULL pointer from mmap", 1);
   }
   printf("Shared memory at address %p 0x%lx bytes\n", vm_control, shmem_size);
+
+  if (run_as_server) {
+    my_shm_data = &vm_control->server_data;
+    peer_shm_data = &vm_control->client_data;
+  } else {
+    my_shm_data = &vm_control->client_data;
+    peer_shm_data = &vm_control->server_data;
+  }
 
   /* get my VM Id and store it */
   res = ioctl(shmem_fd, SHMEM_IOCIVPOSN, &my_vmid);
@@ -264,17 +296,7 @@ int init_shmem_common() {
   return 0;
 }
 
-void shmem_server_test() {
 
-  int timeout, res;
-
-  // Ping
-  timeout = SERVER_TIMEOUT * 0;
-  res = ioctl(shmem_fd, SHMEM_IOCWREMOTE, &timeout);
-  printf("SHMEM_IOCWREMOTE: %d\n", res);
-  // Timeout?
-  // Wait for pong
-}
 
 void run_server() {
   fd_set rfds;
@@ -300,6 +322,7 @@ void run_server() {
               events[n].data.fd);
 
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
+        fprintf(stderr, "%d: Closing fd#%d\n", __LINE__, events[n].data.fd);
         close(events[n].data.fd);
         continue;
       }
