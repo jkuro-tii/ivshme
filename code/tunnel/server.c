@@ -391,10 +391,12 @@ void run_server() {
         if (events[n].data.fd == shmem_fd) { // Data arrived from the peer via shared memory
           printf("shmem_fd event: 0x%x\n", events[n].events);
           n = run_as_server ? current_client : wayland_socket;
+          printf("Received %d bytes\n", peer_shm_data->len);
           rv = write(n, (void*)peer_shm_data->data, peer_shm_data->len);
           if (rv != peer_shm_data->len) {
             fprintf(stderr, "Wrote %d out of %d bytes on fd#%d\n", rv, peer_shm_data->len, n);
           }
+          printf("Data sent. Exec ioctl\n")l
           ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|REMOTE_RESOURCE_CONSUMED_INT_VEC);
 
         } else
