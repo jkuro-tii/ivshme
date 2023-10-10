@@ -307,7 +307,7 @@ int shmem_init() {
   shmem_sync();
 
   // fcntl(shmem_fd, F_SETFL, O_NONBLOCK);
-  ev.events = EPOLLIN|EPOLLOUT;
+  ev.events = EPOLLIN;
   ev.data.fd = shmem_fd;
   if (epoll_ctl(epollfd, EPOLL_CTL_ADD, shmem_fd, &ev) == -1) {
     REPORT("epoll_ctl: shmem_fd", 1);
@@ -327,7 +327,7 @@ void run_server() {
   int len = sizeof(caddr);  /* address length could change */
   char buffer[BUFFER_SIZE + 1];
   struct pollfd fds = {
-    .fd = shmem_fd, .events = POLLIN, .revents = 0};
+    .fd = shmem_fd, .events = POLLOUT, .revents = 0};
 
 
   fprintf(stderr, "Listening for clients...\n");
@@ -371,7 +371,7 @@ void run_server() {
         if (!run_as_server && events[n].data.fd == wayland_socket) {
           /* Wait for the memory buffer to be ready */
           poll(&fds, 1, -1);
-          if (fds.revents ^ POLLIN) {
+          if (fds.revents ^ POLLOUT) {
             fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
                       fds.events); 
           }
@@ -403,8 +403,9 @@ void run_server() {
         
         else { // Data arrived from connected client
           /* Wait for the memory buffer to be ready */
+          printf("Data from client. Waiting for shmem buffer\n");
           poll(&fds, 1, -1);
-          if (fds.revents ^ POLLIN) {
+          if (fds.revents ^ POLLOUT) {
             fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
                       fds.events); 
           }
