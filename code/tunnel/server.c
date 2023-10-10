@@ -419,7 +419,7 @@ void run_server() {
             REPORT("read", 0);
             continue;
           }
-          fprintf(stderr, "Read %d bytes on fd#%d\n", len, events[n].data.fd);
+          fprintf(stderr, "%d: Read %d bytes on fd#%d\n", __LINE__, len, events[n].data.fd);
           my_shm_data->len = len;
           ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
         }

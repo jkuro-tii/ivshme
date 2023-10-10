@@ -207,7 +207,7 @@ static unsigned kvm_ivshmem_poll(struct file *filp,
 
   poll_wait(filp, &common_wait_queue, wait);
 
-	printk("local_resource_count=%d remote_resource_count=%d", local_resource_count, remote_resource_count);
+	printk("in : local_resource_count=%d remote_resource_count=%d", local_resource_count, remote_resource_count);
   if (local_resource_count) {
     local_resource_count = 0;
     mask |= (POLLOUT | POLLWRNORM);
@@ -217,6 +217,7 @@ static unsigned kvm_ivshmem_poll(struct file *filp,
     remote_resource_count = 0;
     mask |= (POLLIN | POLLRDNORM);
   }
+	printk("out: local_resource_count=%d remote_resource_count=%d", local_resource_count, remote_resource_count);
   return mask;
 }
 
