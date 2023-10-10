@@ -251,7 +251,7 @@ void shmem_sync() {
         break;
   } while (1);
 
-  ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
+  ioctl(shmem_fd, SHMEM_IOCRESTART, 0x5555);
   printf(" done.\n");
 }
 
@@ -312,6 +312,7 @@ int shmem_init() {
   if (epoll_ctl(epollfd, EPOLL_CTL_ADD, shmem_fd, &ev) == -1) {
     REPORT("epoll_ctl: shmem_fd", 1);
   }
+  ioctl(shmem_fd, SHMEM_IOCRESTART, 0x5554);
 
   LOG("shared memory initialized");
 
