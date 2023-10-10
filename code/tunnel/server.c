@@ -405,7 +405,7 @@ void run_server() {
         else { // Data arrived from connected client
           /* Wait for the memory buffer to be ready */
           printf("Data from client. Waiting for shmem buffer\n");
-          poll(&fds, 1, -1);
+          // poll(&fds, 1, -1);
           if (fds.revents ^ POLLOUT) {
             fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
                       fds.events); 
