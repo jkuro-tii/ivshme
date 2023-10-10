@@ -103,7 +103,7 @@ int get_shmem_size() {
   return res;
 }
 
-int init_server() {
+int server_init() {
   struct sockaddr_un socket_name;
 
   // Remove socket file if exists
@@ -112,7 +112,7 @@ int init_server() {
   }
   server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (server_socket < 0) {
-    REPORT("init_server: server socket", 1);
+    REPORT("server_init: server socket", 1);
   }
 
   fprintf(stderr, "server socket: %d\n", server_socket);
@@ -132,19 +132,19 @@ int init_server() {
   ev.events = EPOLLIN;
   ev.data.fd = server_socket;
   if (epoll_ctl(epollfd, EPOLL_CTL_ADD, server_socket, &ev) == -1) {
-    FATAL("init_server: epoll_ctl: server_socket");
+    FATAL("server_init: epoll_ctl: server_socket");
   }
 
   LOG("server initialized");
 }
 
-int init_wayland() {
+int wayland_init() {
 
   struct sockaddr_un socket_name;
 
   wayland_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (wayland_socket < 0) {
-    REPORT("init_server: mem socket", 1); /* terminate */
+    REPORT("server_init: mem socket", 1); /* terminate */
   }
 
   fprintf(stderr, "wayland socket: %d\n", wayland_socket);
@@ -287,7 +287,7 @@ int shmem_init() {
     peer_shm_data = &vm_control->server_data;
   }
 
-  /* get my VM Id and store it */
+  /* get my VM Id */
   res = ioctl(shmem_fd, SHMEM_IOCIVPOSN, &my_vmid);
   if (res < 0) {
     REPORT("SHMEM_IOCIVPOSN failed", 1);
@@ -304,15 +304,24 @@ int shmem_init() {
   
   // shmem_test();
   shmem_sync();
+
+  fcntl(shmem_fd, F_SETFL, O_NONBLOCK);
+  ev.events = EPOLLIN|EPOLLOUT;
+  ev.data.fd = shmem_fd;
+  if (epoll_ctl(epollfd, EPOLL_CTL_ADD, shmem_fd, &ev) == -1) {
+    REPORT("epoll_ctl: shmem_fd", 1);
+  }
+
+  LOG("shared memory initialized");
+
   return 0;
 }
-
 
 
 void run_server() {
   fd_set rfds;
   struct timeval tv;
-  int conn_sock, rv, nfds, n, current_client = -1;
+  int conn_socket, rv, nfds, n, current_client = -1;
   struct sockaddr_un caddr; /* client address */
   int len = sizeof(caddr);  /* address length could change */
   char buffer[BUFFER_SIZE + 1];
@@ -334,26 +343,28 @@ void run_server() {
 
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
         fprintf(stderr, "%d: Closing fd#%d\n", __LINE__, events[n].data.fd);
+        if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
+          FATAL("epoll_ctl: EPOLL_CTL_DEL");
+        }
         close(events[n].data.fd);
         continue;
       }
-      if (events[n].data.fd == server_socket) {
-        conn_sock = accept(server_socket, (struct sockaddr *)&caddr, &len);
-        if (conn_sock == -1) {
+
+      if (run_as_server && events[n].data.fd == server_socket) {
+        conn_socket = accept(server_socket, (struct sockaddr *)&caddr, &len);
+        if (conn_socket == -1) {
           FATAL("accept");
         }
-        fcntl(conn_sock, F_SETFL, O_NONBLOCK);
+        fcntl(conn_socket, F_SETFL, O_NONBLOCK);
         ev.events = EPOLLIN | EPOLLET | EPOLLHUP;
-        ev.data.fd = conn_sock;
-        if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn_sock, &ev) == -1) {
-          FATAL("epoll_ctl: conn_sock");
+        ev.data.fd = conn_socket;
+        if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn_socket, &ev) == -1) {
+          FATAL("epoll_ctl: conn_socket");
         }
-        fprintf(stderr, "%d: Added client on fd %d\n", __LINE__, conn_sock);
-      }
+        fprintf(stderr, "%d: Added client on fd %d\n", __LINE__, conn_socket);
+      } else {
 
-      else {
-
-        if (events[n].data.fd == wayland_socket) {
+        if (!run_as_server && events[n].data.fd == wayland_socket) {
           fprintf(stderr, "%d: %s\n", __LINE__, "Reading from wayland socket");
           // TODO read directly into shared memory
           len = read(events[n].data.fd, buffer, sizeof(buffer));
@@ -371,10 +382,15 @@ void run_server() {
                     events[n].data.fd);
           }
 
-        } else if (events[n].data.fd == server_socket) {
-          LOG("readserver socket");
-        }
+        } else 
 
+        if (events[n].data.fd == shmem_fd) {
+          printf("shmem_fd event: 0x%x\n", events[n].events);
+        } else
+        if (events[n].data.fd == server_socket) {
+          LOG("readserver socket");
+        } 
+        
         else { // connected client event
           fprintf(stderr, "%d: %s\n", __LINE__,
                   "Reading from connected client");
@@ -406,17 +422,19 @@ int main(int argc, char **argv) {
 
   epollfd = epoll_create1(0);
   if (epollfd == -1) {
-    REPORT("init_server: epoll_create1", 1);
+    REPORT("server_init: epoll_create1", 1);
   }
 
   if (argc > 1) {
     run_as_server = 1;
   }
+
   shmem_init();
 
-  init_server();
-  init_wayland();
-
+  if(run_as_server)
+    server_init();
+  else
+    wayland_init();
 
   run_server();
 
