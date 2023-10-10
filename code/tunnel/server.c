@@ -55,7 +55,7 @@ struct epoll_event ev, events[MAX_EVENTS];
 typedef struct  {
   volatile int len;
   volatile unsigned char data[SHMEM_BUFFER_SIZE];
-} volatile vm_data;
+} vm_data;
 
 int epollfd;
 
@@ -69,8 +69,8 @@ long int shmem_size;
 struct {
   volatile int iv_server;
   volatile int iv_client;
-  volatile vm_data server_data;
-  volatile vm_data client_data;
+  vm_data server_data;
+  vm_data client_data;
 
   // volatile int server_data_len;
   // volatile unsigned char server_data[SHMEM_BUFFER_SIZE];
@@ -266,6 +266,7 @@ int shmem_init() {
   if (shmem_fd < 0) {
     REPORT(SHM_DEVICE_FN, 1);
   }
+  printf("shared memory fd: %d\n", shmem_fd);
 
   /* Get shared memory */
   shmem_size = get_shmem_size();
@@ -305,7 +306,7 @@ int shmem_init() {
   // shmem_test();
   shmem_sync();
 
-  fcntl(shmem_fd, F_SETFL, O_NONBLOCK);
+  // fcntl(shmem_fd, F_SETFL, O_NONBLOCK);
   ev.events = EPOLLIN|EPOLLOUT;
   ev.data.fd = shmem_fd;
   if (epoll_ctl(epollfd, EPOLL_CTL_ADD, shmem_fd, &ev) == -1) {
@@ -325,6 +326,9 @@ void run_server() {
   struct sockaddr_un caddr; /* client address */
   int len = sizeof(caddr);  /* address length could change */
   char buffer[BUFFER_SIZE + 1];
+  struct pollfd fds = {
+    .fd = shmem_fd, .events = POLLIN, .revents = 0};
+
 
   fprintf(stderr, "Listening for clients...\n");
   int count;
@@ -365,52 +369,57 @@ void run_server() {
       } else {
 
         if (!run_as_server && events[n].data.fd == wayland_socket) {
+          /* Wait for the memory buffer to be ready */
+          poll(&fds, 1, -1);
+          if (fds.revents ^ POLLIN) {
+            fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
+                      fds.events); 
+          }
           fprintf(stderr, "%d: %s\n", __LINE__, "Reading from wayland socket");
-          // TODO read directly into shared memory
-          len = read(events[n].data.fd, buffer, sizeof(buffer));
-
+          len = read(events[n].data.fd, (void*)my_shm_data->data, sizeof(my_shm_data->data));
           if (len <= 0) {
             REPORT("read", 0);
             continue;
           }
-          fprintf(stderr, "Read %d bytes on fd#%d\n", len, events[n].data.fd);
-
-          // TODO: write directly from the share memory
-          rv = write(current_client, buffer, len);
-          if (rv != len) {
-            fprintf(stderr, "Wrote %d out of %d bytes on fd#%d\n", rv, n,
-                    events[n].data.fd);
-          }
+          fprintf(stderr, "Read & sent %d bytes on fd#%d\n", len, events[n].data.fd);
+          my_shm_data->len = len;
+          ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
 
         } else 
 
-        if (events[n].data.fd == shmem_fd) {
+        if (events[n].data.fd == shmem_fd) { // Data arrived from the peer via shared memory
           printf("shmem_fd event: 0x%x\n", events[n].events);
+          n = run_as_server ? current_client : wayland_socket;
+          rv = write(n, (void*)peer_shm_data->data, peer_shm_data->len);
+          if (rv != peer_shm_data->len) {
+            fprintf(stderr, "Wrote %d out of %d bytes on fd#%d\n", rv, peer_shm_data->len, n);
+          }
+          ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|REMOTE_RESOURCE_CONSUMED_INT_VEC);
+
         } else
         if (events[n].data.fd == server_socket) {
           LOG("readserver socket");
         } 
         
-        else { // connected client event
+        else { // Data arrived from connected client
+          /* Wait for the memory buffer to be ready */
+          poll(&fds, 1, -1);
+          if (fds.revents ^ POLLIN) {
+            fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
+                      fds.events); 
+          }
+
           fprintf(stderr, "%d: %s\n", __LINE__,
                   "Reading from connected client");
           current_client = events[n].data.fd;
-
-          // TODO: read directly from the share memory
-          len = read(events[n].data.fd, buffer, sizeof(buffer));
+          len = read(events[n].data.fd, (void*)my_shm_data->data, sizeof(my_shm_data->data));
           if (len <= 0) {
             REPORT("read", 0);
             continue;
           }
-
           fprintf(stderr, "Read %d bytes on fd#%d\n", len, events[n].data.fd);
-          // rv = write(current_client, buffer, len);
-          // TODO: write directly from the share memory
-          rv = write(wayland_socket, buffer, len);
-          if (rv != len) {
-            fprintf(stderr, "Wrote only %d out of %d bytes on fd#%d\n", rv, len,
-                    events[n].data.fd);
-          }
+          my_shm_data->len = len;
+          ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
         }
       }
     }
