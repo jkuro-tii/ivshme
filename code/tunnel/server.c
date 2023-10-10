@@ -396,7 +396,7 @@ void run_server() {
           if (rv != peer_shm_data->len) {
             fprintf(stderr, "Wrote %d out of %d bytes on fd#%d\n", rv, peer_shm_data->len, n);
           }
-          printf("Data sent. Exec ioctl\n")l
+          printf("Data sent. Exec ioctl\n");
           ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|REMOTE_RESOURCE_CONSUMED_INT_VEC);
 
         } else
