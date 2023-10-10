@@ -204,20 +204,29 @@ static long kvm_ivshmem_ioctl(struct file *filp, unsigned int cmd,
 static unsigned kvm_ivshmem_poll(struct file *filp,
                                  struct poll_table_struct *wait) {
   __poll_t mask = 0;
+	__poll_t req_events = poll_requested_events(wait);
 
-  poll_wait(filp, &common_wait_queue, wait);
+	if (req_events & EPOLLIN) {
+	  poll_wait(filp, &remote_data_ready_wait_queue, wait);
 
-	printk("in : local_resource_count=%d remote_resource_count=%d", local_resource_count, remote_resource_count);
-  if (local_resource_count) {
-    local_resource_count = 0;
-    mask |= (POLLOUT | POLLWRNORM);
-  }
+		printk("poll: in: remote_resource_count=%d", remote_resource_count);
+		if (remote_resource_count) {
+			remote_resource_count = 0;
+			mask |= (POLLIN | POLLRDNORM);
+		}
+		printk("poll: out: remote_resource_count=%d", remote_resource_count);
+	}
+	
+	if (req_events & EPOLLOUT) {
+	  poll_wait(filp, &local_data_ready_wait_queue, wait);
+		printk("poll: in: local_resource_count=%d", local_resource_count);
+		if (local_resource_count) {
+			local_resource_count = 0;
+			mask |= (POLLOUT | POLLWRNORM);
+		}
+		printk("poll: out: local_resource_count=%d", local_resource_count);
+	}
 
-  if (remote_resource_count) {
-    remote_resource_count = 0;
-    mask |= (POLLIN | POLLRDNORM);
-  }
-	printk("out: local_resource_count=%d remote_resource_count=%d", local_resource_count, remote_resource_count);
   return mask;
 }
 
@@ -318,13 +327,13 @@ static irqreturn_t kvm_ivshmem_interrupt(int irq, void *dev_instance) {
   KVM_IVSHMEM_DPRINTK("irq %d", irq);
 
   if (irq == irq_local_resource_ready) {
-    KVM_IVSHMEM_DPRINTK("remote_data_ready_wait_queue");
+    KVM_IVSHMEM_DPRINTK("wake up remote_data_ready_wait_queue");
     remote_resource_count = 1;
     wake_up_interruptible(&remote_data_ready_wait_queue);
     wake_up_interruptible(&common_wait_queue);
 
   } else if (irq == irq_remote_resource_ready) {
-    KVM_IVSHMEM_DPRINTK("local_data_ready_wait_queue");
+    KVM_IVSHMEM_DPRINTK("wake up local_data_ready_wait_queue");
     local_resource_count = 1;
     wake_up_interruptible(&local_data_ready_wait_queue);
     wake_up_interruptible(&common_wait_queue);
