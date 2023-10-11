@@ -385,10 +385,12 @@ void run_server() {
           fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
                     my_buffer_fds.events); 
         }
+        // Send connect request to the wayland peer
         my_shm_data->cmd = CMD_CONNECT;
         my_shm_data->fd =  conn_socket;
-
+        ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
         fprintf(stderr, "%d: Added client on fd %d\n", __LINE__, conn_socket);
+
       } else {
 
         if (!run_as_server && events[n].data.fd == wayland_socket) {
