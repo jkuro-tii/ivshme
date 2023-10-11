@@ -55,7 +55,7 @@
 enum {
   CMD_CONNECT, CMD_DATA, CMD_CLOSE
 };
-
+#define FD_MAP_COUNT (sizeof(fd_map)/sizeof(fd_map[0]))
 struct {
   int my_fd;
   int remote_fd;
@@ -150,13 +150,13 @@ int server_init() {
   LOG("server initialized");
 }
 
-int wayland_init() {
+int wayland_connect() {
 
   struct sockaddr_un socket_name;
 
   wayland_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (wayland_socket < 0) {
-    REPORT("server_init: mem socket", 1); /* terminate */
+    REPORT("wayland socket", 1); /* terminate */
   }
 
   fprintf(stderr, "wayland socket: %d\n", wayland_socket);
@@ -178,6 +178,20 @@ int wayland_init() {
 
   LOG("client side initialized");
   return wayland_socket;
+}
+
+void make_wayland_connection(int peer_fd) {
+  int i;
+
+  for (i = 0; i < FD_MAP_COUNT; i++) {
+    if (fd_map[i].my_fd == -1) {
+      fd_map[i].my_fd = wayland_connect();
+      fd_map[i].remote_fd = peer_fd;
+      return;
+    }
+  }
+
+  REPORT("fd_map table full", 1); /* terminate */
 }
 
 void shmem_test() {
@@ -332,7 +346,7 @@ int shmem_init() {
 }
 
 
-void run_server() {
+void run() {
   fd_set rfds;
   struct timeval tv;
   int conn_socket, rv, nfds, n, current_client = -1;
@@ -432,6 +446,7 @@ void run_server() {
             printf("Data sent\n");
           }
           else if (peer_shm_data->cmd == CMD_CONNECT) {
+            make_wayland_connection(peer_shm_data->fd);
           }
           else if (peer_shm_data->cmd == CMD_CLOSE) {
           }
@@ -476,7 +491,7 @@ int main(int argc, char **argv) {
 
   int i;
   
-  for (i = 0; i < sizeof(fd_map)/sizeof(fd_map[0]); i++) {
+  for (i = 0; i < FD_MAP_COUNT; i++) {
     fd_map[i].my_fd = -1;
     fd_map[i].remote_fd = -1;
   }
@@ -494,10 +509,8 @@ int main(int argc, char **argv) {
 
   if(run_as_server)
     server_init();
-  else
-    wayland_init();
 
-  run_server();
+  run();
 
   return 0;
 }
