@@ -464,6 +464,15 @@ void run() {
             make_wayland_connection(peer_shm_data->fd);
           }
           else if (peer_shm_data->cmd == CMD_CLOSE) {
+            if (run_as_server) {
+              printf("Closing %d\n", peer_shm_data->fd);
+              close(peer_shm_data->fd);
+            }
+            else {
+              int fd = get_wayland_socket(peer_shm_data->fd);
+              printf("Closing %d peer fd=%d\n", fd, peer_shm_data->fd);
+              close(fd);
+            }
           }
           printf("Exec ioctl REMOTE_RESOURCE_CONSUMED_INT_VEC\n");
           peer_shm_data->cmd = -1;
