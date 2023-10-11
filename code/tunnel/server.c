@@ -195,16 +195,34 @@ void make_wayland_connection(int peer_fd) {
   REPORT("fd_map table full", 1); /* terminate */
 }
 
-int get_wayland_socket(int peer_fd) {
+int get_wayland_socket(int peer_fd, int close) {
+
+  int i, rv;
+
+  for (i = 0; i < FD_MAP_COUNT; i++) {
+    if (fd_map[i].remote_fd == peer_fd) {
+      rv = fd_map[i].my_fd;
+      if (close)
+        fd_map[i].my_fd = -1;
+      return rv;
+    }
+  }
+  REPORT("peer fd not found", 1); /* terminate */
+  return -1;
+}
+
+int get_remote_socket(int my_fd, int close) {
 
   int i;
 
   for (i = 0; i < FD_MAP_COUNT; i++) {
-    if (fd_map[i].remote_fd == peer_fd) {
-      return fd_map[i].my_fd;
+    if (fd_map[i].my_fd == my_fd) {
+      if (close)
+        fd_map[i].my_fd = -1;
+      return fd_map[i].remote_fd;
     }
   }
-  REPORT("peer fd not found", 1); /* terminate */
+  REPORT("my fd not found", 1); /* terminate */
   return -1;
 }
 
@@ -392,8 +410,17 @@ void run() {
         if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
           FATAL("epoll_ctl: EPOLL_CTL_DEL");
         }
-        // TODO: remove connection on both sides!
+
         close(events[n].data.fd);
+        poll(&my_buffer_fds, 1, -1);
+        my_shm_data->cmd = CMD_CLOSE;
+        if (run_as_server)
+          my_shm_data->fd =  events[n].data.fd;
+        else
+          my_shm_data->fd = get_remote_socket(events[n].data.fd, 1);
+
+        fprintf(stderr, "%d: Sending close request for %d\n", __LINE__, my_shm_data->fd);
+        ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
         continue;
       }
 
@@ -452,7 +479,7 @@ void run() {
             printf("RECEIVED INVALID CMD!\n");
           } else 
           if (peer_shm_data->cmd == CMD_DATA) {
-            n = run_as_server ? current_client : get_wayland_socket(peer_shm_data->fd);
+            n = run_as_server ? current_client : get_wayland_socket(peer_shm_data->fd, 0);
             printf("Received %d bytes\n", peer_shm_data->len);
             rv = write(n, (void*)peer_shm_data->data, peer_shm_data->len);
             if (rv != peer_shm_data->len) {
@@ -469,7 +496,7 @@ void run() {
               close(peer_shm_data->fd);
             }
             else {
-              int fd = get_wayland_socket(peer_shm_data->fd);
+              int fd = get_wayland_socket(peer_shm_data->fd, 1);
               printf("Closing %d peer fd=%d\n", fd, peer_shm_data->fd);
               close(fd);
             }
