@@ -419,7 +419,9 @@ void run_server() {
 
         if (events[n].data.fd == shmem_fd) { // Data arrived from the peer via shared memory
           printf("shmem_fd event: 0x%x cmd: %d remote fd: %d\n", events[n].events, peer_shm_data->cmd, peer_shm_data->fd);
-
+          if (peer_shm_data->cmd == -1 {
+            printf("RECEIVED INVALID CMD!\n");
+          } else 
           if (peer_shm_data->cmd == CMD_DATA) {
             n = run_as_server ? current_client : wayland_socket;
             printf("Received %d bytes\n", peer_shm_data->len);
@@ -434,6 +436,7 @@ void run_server() {
           else if (peer_shm_data->cmd == CMD_CLOSE) {
           }
           printf("Exec ioctl REMOTE_RESOURCE_CONSUMED_INT_VEC\n");
+          peer_shm_data->cmd = -1;
           ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|REMOTE_RESOURCE_CONSUMED_INT_VEC);
         } 
         else if (events[n].data.fd == server_socket) {
@@ -458,6 +461,8 @@ void run_server() {
             continue;
           }
           fprintf(stderr, "%d: Read %d bytes on fd#%d\n", __LINE__, len, events[n].data.fd);
+          my_shm_data->cmd = CMD_DATA;
+          my_shm_data->fd = events[n].data.fd;
           my_shm_data->len = len;
           ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
         }
