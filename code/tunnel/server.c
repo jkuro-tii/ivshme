@@ -181,6 +181,7 @@ int wayland_connect() {
 }
 
 void make_wayland_connection(int peer_fd) {
+
   int i;
 
   for (i = 0; i < FD_MAP_COUNT; i++) {
@@ -193,6 +194,20 @@ void make_wayland_connection(int peer_fd) {
 
   REPORT("fd_map table full", 1); /* terminate */
 }
+
+int get_wayland_socket(int peer_fd) {
+
+  int i;
+
+  for (i = 0; i < FD_MAP_COUNT; i++) {
+    if (fd_map[i].remote_fd == peer_fd) {
+      return fd_map[i].my_fd;
+    }
+  }
+  REPORT("peer fd not found", 1); /* terminate */
+  return -1;
+}
+
 
 void shmem_test() {
 
@@ -357,7 +372,7 @@ void run() {
     .fd = shmem_fd, .events = POLLOUT, .revents = 0};
 
 
-  fprintf(stderr, "Listening for clients...\n");
+  fprintf(stderr, "Listening for events.\n");
   int count;
   while (1) {
 
@@ -377,6 +392,7 @@ void run() {
         if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
           FATAL("epoll_ctl: EPOLL_CTL_DEL");
         }
+        // TODO: remove connection on both sides!
         close(events[n].data.fd);
         continue;
       }
@@ -392,8 +408,7 @@ void run() {
         if (epoll_ctl(epollfd, EPOLL_CTL_ADD, conn_socket, &ev) == -1) {
           FATAL("epoll_ctl: conn_socket");
         }
-        // add client to the fd_map? No?
-        // Send request
+
         poll(&my_buffer_fds, 1, -1);
         if (my_buffer_fds.revents ^ POLLOUT) {
           fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
@@ -437,7 +452,7 @@ void run() {
             printf("RECEIVED INVALID CMD!\n");
           } else 
           if (peer_shm_data->cmd == CMD_DATA) {
-            n = run_as_server ? current_client : wayland_socket;
+            n = run_as_server ? current_client : get_wayland_socket(peer_shm_data->fd);
             printf("Received %d bytes\n", peer_shm_data->len);
             rv = write(n, (void*)peer_shm_data->data, peer_shm_data->len);
             if (rv != peer_shm_data->len) {
