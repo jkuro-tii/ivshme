@@ -419,7 +419,7 @@ void run_server() {
 
         if (events[n].data.fd == shmem_fd) { // Data arrived from the peer via shared memory
           printf("shmem_fd event: 0x%x cmd: %d remote fd: %d\n", events[n].events, peer_shm_data->cmd, peer_shm_data->fd);
-          if (peer_shm_data->cmd == -1 {
+          if (peer_shm_data->cmd == -1) {
             printf("RECEIVED INVALID CMD!\n");
           } else 
           if (peer_shm_data->cmd == CMD_DATA) {
