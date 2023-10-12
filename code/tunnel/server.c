@@ -36,7 +36,7 @@
 #define MAX_EVENTS (1024)
 #define MAX_CLIENTS (100)
 #define BUFFER_SIZE (1024000)
-
+#define SHMEM_POLL_TIMEOUT (300)
 #define SHMEM_BUFFER_SIZE (1024000 * 2)
 
 /* TODO: remove */
@@ -46,6 +46,7 @@
   { report(__FUNCTION__, __LINE__, msg, 1); }
 #define LOG(msg)                                                               \
   { report(__FUNCTION__, __LINE__, msg, 0); }
+#define fprintf_at { fprintf(stderr, "%s:%d: ", __FILE__, __LINE__); }
 
 // #define DLOG(fmt/**/, args*/...) { fprintf(stderr, "%s:%d: ", __FUNCTION__,
 // __LINE__); fprintf(stderr, fmt, __VA_OPTremote_socket__(,/*args*/)) ; }
@@ -93,32 +94,8 @@ struct {
 
 void shmem_sync();
 
-
-/* Obtain a backtrace and print it to stdout. */
-void
-print_trace (void)
-{
-  void *array[10];
-  char **strings;
-  int size, i;
-
-  size = backtrace (array, 10);
-  strings = backtrace_symbols (array, size);
-  if (strings != NULL)
-  {
-
-    printf ("Obtained %d stack frames.\n", size);
-    for (i = 0; i < size; i++)
-      printf ("%s\n", strings[i]);
-  }
-
-  free (strings);
-}
-
-
 void report(const char *where, int line, const char *msg, int terminate) {
   char tmp[256];
-  print_trace ();
   sprintf(tmp, "%s:%d %s", where, line, msg);
   if (errno) {
     perror(tmp);
@@ -151,8 +128,8 @@ int server_init() {
   if (server_socket < 0) {
     REPORT("server_init: server socket", 1);
   }
-
-  fprintf(stderr, "server socket: %d\n", server_socket);
+  
+  fprintf(stderr, "%s:%d: server socket: %d\n", __FILE__, __LINE__, server_socket);          
 
   memset(&socket_name, 0, sizeof(socket_name));
   socket_name.sun_family = AF_UNIX;
@@ -185,7 +162,7 @@ int wayland_connect() {
     REPORT("wayland socket", 1); /* terminate */
   }
 
-  fprintf(stderr, "wayland socket: %d\n", wayland_fd);
+  fprintf(stderr, "%s:%d: wayland socket: %d\n", __FILE__, __LINE__, wayland_fd);          
 
   memset(&socket_name, 0, sizeof(socket_name));
   socket_name.sun_family = AF_UNIX;
@@ -217,7 +194,8 @@ void make_wayland_connection(int peer_fd) {
       return;
     }
   }
-  printf("FAILED fd#%d\n", peer_fd);
+  fprintf_at;
+  fprintf(stderr, "FAILED fd#%d\n", peer_fd);
   REPORT("fd_map table full", 1); /* terminate */
 }
 
@@ -233,7 +211,8 @@ int get_wayland_fd(int peer_fd, int close) {
       return rv;
     }
   }
-  printf("FAILED fd#%d\n", peer_fd);
+  fprintf_at; 
+  fprintf(stderr, "FAILED fd#%d\n", peer_fd);
   REPORT("peer fd  not found", 1); /* terminate */
   return -1;
 }
@@ -269,16 +248,14 @@ void shmem_test() {
 
   counter = my_vmid;
 
-  printf("my_vmid=0x%x my_shm_data=%p\n", my_vmid, my_shm_data);
+  fprintf(stderr, "%s:%d my_vmid=0x%x my_shm_data=%p\n", __FILE__, __LINE__, my_vmid, my_shm_data);
   do {
-    res = poll(&fds, 1, 333);
+    res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
     if (res && (fds.revents & POLLIN)) {
-      printf("POLLIN: ");
-
       data = my_shm_data->len;
       my_shm_data->len = -1;
       iv = peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC;
-      printf(" received %02x \n", data);
+      fprintf(stderr, "%s:%d received %02x \n", __FILE__, __LINE__, data);
       usleep(random() % 3333333);
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       if (res < 0) {
@@ -287,11 +264,11 @@ void shmem_test() {
     }
 
     if (res && (fds.revents & POLLOUT)) {
-      printf("POLLOUT");
+      fprintf(stderr, "%s:%d POLLOUT", __FILE__, __LINE__);
 
       peer_shm_data->len = counter;
       iv = peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC;
-      printf(" sending %02x\n", counter);
+      fprintf(stderr, "%s:%d sending %02x\n", __FILE__, __LINE__, counter);
       counter++;
       usleep(random() % 3333333);
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
@@ -318,7 +295,7 @@ void shmem_sync() {
   else
     vm_control->iv_server = 0;
 
-  printf("Syncing...\n");
+  fprintf(stderr, "%s:%d Syncing...\n", __FILE__, __LINE__);
   do {
       usleep(random() % 333333);
       if (run_as_server) {
@@ -335,19 +312,19 @@ void shmem_sync() {
       iv |= LOCAL_RESOURCE_READY_INT_VEC;
       peer_shm_data->len = 0;
       ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
-      res = poll(&fds, 1, 300);
+      res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
       if ((res > 0) && (fds.revents & POLLIN))
         break;
   } while (1);
 
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0x5555);
-  printf(" done.\n");
+  fprintf(stderr, "%s:%d done\n", __FILE__, __LINE__);
 }
 
 int shmem_init() {
   int res = -1;
 
-  printf("Waiting for devices setup...\n");
+  fprintf(stderr, "%s:%d Waiting for devices setup...\n", __FILE__, __LINE__);
   sleep(1);
 
   /* Open shared memory */
@@ -420,7 +397,7 @@ void run() {
     .fd = shmem_fd, .events = POLLOUT, .revents = 0};
 
 
-  fprintf(stderr, "Listening for events.\n");
+  fprintf(stderr, "%s:%d:Listening for events.\n",__FILE__, __LINE__);
   int count;
   while (1) {
 
@@ -431,12 +408,11 @@ void run() {
 
     for (n = 0; n < nfds; n++) {
 
-      fprintf(stderr, "%d: ", __LINE__);
-      fprintf(stderr, "Event 0x%x on fd %d\n", events[n].events,
+      fprintf(stderr, "%s:%d: Event 0x%x on fd %d\n", __FILE__, __LINE__, events[n].events,
               events[n].data.fd);
 
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
-        fprintf(stderr, "%d: Closing fd#%d\n", __LINE__, events[n].data.fd);
+        fprintf(stderr, "%s:%d: Closing fd#%d\n", __FILE__, __LINE__, events[n].data.fd);
         if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
           FATAL("epoll_ctl: EPOLL_CTL_DEL");
         }
@@ -444,15 +420,18 @@ void run() {
         close(events[n].data.fd);
         
         // Inform the peer that the socket has been closed
-        poll(&my_buffer_fds, 1, -1);
+        rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
+        if (rv < 0) {
+          fprintf(stderr, "%s:%d: shmem poll timeout\n", __FILE__, __LINE__);
+        }
         my_shm_data->cmd = CMD_CLOSE;
         if (run_as_server)
           my_shm_data->fd =  events[n].data.fd;
         else {
-          printf("%d: get_remote_socket: %d\n", __LINE__, get_remote_socket(events[n].data.fd, 1, 1));
+          fprintf(stderr, "%s:%d: get_remote_socket: %d\n", __FILE__, __LINE__, get_remote_socket(events[n].data.fd, 1, 1));
           my_shm_data->fd = get_remote_socket(events[n].data.fd, 1, 0);
         }
-        fprintf(stderr, "%d: Sending close request for %d\n", __LINE__, my_shm_data->fd);
+        fprintf(stderr, "%s:%d: Sending close request for %d\n", __FILE__, __LINE__, my_shm_data->fd);          
         ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
         continue;
       }
@@ -468,35 +447,35 @@ void run() {
           FATAL("epoll_ctl: conn_fd");
         }
 
-        poll(&my_buffer_fds, 1, -1);
+        poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
         if (my_buffer_fds.revents ^ POLLOUT) {
-          fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
+          fprintf(stderr,"%s:%d: unexpected event on shmem_fd %d: 0x%x\n", __FILE__, __LINE__, shmem_fd, 
                     my_buffer_fds.events); 
         }
         // Send connect request to the wayland peer
         my_shm_data->cmd = CMD_CONNECT;
         my_shm_data->fd =  conn_fd;
         ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|LOCAL_RESOURCE_READY_INT_VEC);
-        fprintf(stderr, "%d: Added client on fd %d\n", __LINE__, conn_fd);
+        fprintf(stderr, "%s:%d: Added client on fd %d\n", __FILE__, __LINE__, conn_fd);
 
       } else 
       if (!run_as_server && get_remote_socket(events[n].data.fd, 0, 1) > 0) {
         int remote_fd = get_remote_socket(events[n].data.fd, 0, 1);
-        printf("%d: get_remote_socket: %d\n", __LINE__, remote_fd);
+        printf("%s:%d: get_remote_socket: %d\n", __FILE__, __LINE__, remote_fd);
         /* Wait for the memory buffer to be ready */
-        printf("Data from wayland. Waiting for shmem buffer\n");
-        poll(&my_buffer_fds, 1, -1);
+        printf("%s:%d: Data from wayland. Waiting for shmem buffer\n", __FILE__, __LINE__);
+        poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
         if (my_buffer_fds.revents ^ POLLOUT) {
-          fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
+          fprintf(stderr,"%s:%d: unexpected event on shmem_fd %d: 0x%x\n", __FILE__, __LINE__, shmem_fd, 
                     my_buffer_fds.events); 
         }
-        fprintf(stderr, "%d: %s\n", __LINE__, "Reading from wayland socket");
+        fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__, "Reading from wayland socket");
         len = read(events[n].data.fd, (void*)my_shm_data->data, sizeof(my_shm_data->data));
         if (len <= 0) {
           REPORT("read", 0);
           continue;
         }
-        fprintf(stderr, "Read & sent %d bytes on fd#%d sending to %d\n", len, events[n].data.fd,
+        fprintf(stderr, "%s:%d:Read & sent %d bytes on fd#%d sending to %d\n", __FILE__, __LINE__, len, events[n].data.fd,
           remote_fd);
 
         // Send the data to the server
@@ -507,34 +486,34 @@ void run() {
 
       } else 
       if (events[n].data.fd == shmem_fd) { // Data arrived from the peer via shared memory
-        printf("shmem_fd event: 0x%x cmd: %d remote fd: %d\n", events[n].events, peer_shm_data->cmd, peer_shm_data->fd);
+        fprintf(stderr, "%s:%d: shmem_fd event: 0x%x cmd: %d remote fd: %d\n", __FILE__, __LINE__, events[n].events, peer_shm_data->cmd, peer_shm_data->fd);
         if (peer_shm_data->cmd == -1) {
-          printf("RECEIVED INVALID CMD!\n");
+          printf("%s:%d: RECEIVED INVALID CMD!\n", __FILE__, __LINE__);
         } else 
         if (peer_shm_data->cmd == CMD_DATA) {
           n = run_as_server ? peer_shm_data->fd : get_wayland_fd(peer_shm_data->fd, 0);
-          printf("%d: shmem: received %d bytes for %d\n", __LINE__, peer_shm_data->len, n);
+          fprintf(stderr, "%s:%d: shmem: received %d bytes for %d\n", __FILE__, __LINE__, peer_shm_data->len, n);
           rv = write(n, (void*)peer_shm_data->data, peer_shm_data->len);
           if (rv != peer_shm_data->len) {
-            fprintf(stderr, "Wrote %d out of %d bytes on fd#%d\n", rv, peer_shm_data->len, n);
+            fprintf(stderr, "%s:%d: Wrote %d out of %d bytes on fd#%d\n", __FILE__, __LINE__, rv, peer_shm_data->len, n);
           }
-          printf("Data sent\n");
+          fprintf(stderr, "%s:%d: Data sent\n", __FILE__, __LINE__);
         }
         else if (peer_shm_data->cmd == CMD_CONNECT) {
           make_wayland_connection(peer_shm_data->fd);
         }
         else if (peer_shm_data->cmd == CMD_CLOSE) {
           if (run_as_server) {
-            printf("Closing %d\n", peer_shm_data->fd);
+            printf("%s:%d: Closing %d\n", __FILE__, __LINE__, peer_shm_data->fd);
             close(peer_shm_data->fd);
           }
           else {
             int fd = get_wayland_fd(peer_shm_data->fd, 1);
-            printf("Closing %d peer fd=%d\n", fd, peer_shm_data->fd);
+            printf("%s:%d Closing %d peer fd=%d\n", __FILE__, __LINE__, fd, peer_shm_data->fd);
             close(fd);
           }
         }
-        printf("Exec ioctl REMOTE_RESOURCE_CONSUMED_INT_VEC\n");
+        printf("%s:%d Exec ioctl REMOTE_RESOURCE_CONSUMED_INT_VEC\n", __FILE__, __LINE__);
         peer_shm_data->cmd = -1;
         ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id|REMOTE_RESOURCE_CONSUMED_INT_VEC);
       } 
@@ -544,14 +523,14 @@ void run() {
         
       else { // Data arrived from connected client
         /* Wait for the memory buffer to be ready */
-        printf("Data from client. Waiting for shmem buffer\n");
-        poll(&my_buffer_fds, 1, -1);
+        printf("%s:%d:Data from client. Waiting for shmem buffer\n", __FILE__, __LINE__);
+        poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
         if (my_buffer_fds.revents ^ POLLOUT) {
-          fprintf(stderr,"%d: unexpected event on shmem_fd %d: 0x%x\n", __LINE__, shmem_fd, 
+          fprintf(stderr,"%s:%d: unexpected event on shmem_fd %d: 0x%x\n", __FILE__, __LINE__, shmem_fd, 
                     my_buffer_fds.events); 
         }
 
-        fprintf(stderr, "%d: Reading from connected client #%d\n", __LINE__, events[n].data.fd);
+        fprintf(stderr, "%s:%d: Reading from connected client #%d\n", __FILE__, __LINE__, events[n].data.fd);
         len = read(events[n].data.fd, (void*)my_shm_data->data, sizeof(my_shm_data->data));
         if (len <= 0) {
           REPORT("read", 0);

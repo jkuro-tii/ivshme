@@ -22,6 +22,7 @@
 #include <linux/proc_fs.h>
 #include <linux/uio.h>
 
+DEFINE_SPINLOCK(rawhide_irq_lock);
 #define VECTORS_COUNT (2)
 #define REMOTE_RESOURCE_CONSUMED_INT_VEC (0)
 #define LOCAL_RESOURCE_READY_INT_VEC (1)
@@ -77,7 +78,6 @@ static int local_resource_count;
 static int remote_resource_count;
 static wait_queue_head_t local_data_ready_wait_queue;
 static wait_queue_head_t remote_data_ready_wait_queue;
-static wait_queue_head_t common_wait_queue;
 
 static kvm_ivshmem_device kvm_ivshmem_dev;
 
@@ -148,7 +148,9 @@ static long kvm_ivshmem_ioctl(struct file *filp, unsigned int cmd,
     rv = wait_event_interruptible_timeout(local_data_ready_wait_queue,
                                           (local_resource_count == 1), timeout);
     KVM_IVSHMEM_DPRINTK("waking up rv:%d", rv);
+    spin_lock(&rawhide_irq_lock);
     local_resource_count = 0;
+    spin_unlock(&rawhide_irq_lock);
     break;
 
   case SHMEM_IOCWREMOTE:
@@ -164,7 +166,9 @@ static long kvm_ivshmem_ioctl(struct file *filp, unsigned int cmd,
     rv = wait_event_interruptible_timeout(
         remote_data_ready_wait_queue, (remote_resource_count == 1), timeout);
     KVM_IVSHMEM_DPRINTK("waking up rv:%d", rv);
+    spin_lock(&rawhide_irq_lock);
     remote_resource_count = 0;
+    spin_unlock(&rawhide_irq_lock);
     break;
 
   case SHMEM_IOCIVPOSN:
@@ -179,9 +183,13 @@ static long kvm_ivshmem_ioctl(struct file *filp, unsigned int cmd,
     KVM_IVSHMEM_DPRINTK("ringing doorbell id=0x%lx on vector 0x%x", (arg >> 16),
                         vec);
     if (vec == LOCAL_RESOURCE_READY_INT_VEC) {
+      spin_lock(&rawhide_irq_lock);
       local_resource_count = 0;
+      spin_unlock(&rawhide_irq_lock);
     } else if (vec == REMOTE_RESOURCE_CONSUMED_INT_VEC) {
+      spin_lock(&rawhide_irq_lock);
       remote_resource_count = 0;
+      spin_unlock(&rawhide_irq_lock);
     } else {
       KVM_IVSHMEM_DPRINTK("invalid interrupt vector %d", vec);
       return -EINVAL;
@@ -190,7 +198,9 @@ static long kvm_ivshmem_ioctl(struct file *filp, unsigned int cmd,
     break;
 
   case SHMEM_IOCRESTART:
+    spin_lock(&rawhide_irq_lock);
 		local_resource_count = 1;
+    spin_unlock(&rawhide_irq_lock);
 		break;
 
   default:
@@ -210,20 +220,24 @@ static unsigned kvm_ivshmem_poll(struct file *filp,
 	  poll_wait(filp, &remote_data_ready_wait_queue, wait);
 
 		printk("poll: in: remote_resource_count=%d", remote_resource_count);
+    spin_lock(&rawhide_irq_lock);
 		if (remote_resource_count) {
 			remote_resource_count = 0;
 			mask |= (POLLIN | POLLRDNORM);
 		}
+    spin_unlock(&rawhide_irq_lock);
 		printk("poll: out: remote_resource_count=%d", remote_resource_count);
 	}
 	
 	if (req_events & EPOLLOUT) {
 	  poll_wait(filp, &local_data_ready_wait_queue, wait);
 		printk("poll: in: local_resource_count=%d", local_resource_count);
+    spin_lock(&rawhide_irq_lock);
 		if (local_resource_count) {
 			local_resource_count = 0;
 			mask |= (POLLOUT | POLLWRNORM);
 		}
+    spin_unlock(&rawhide_irq_lock);
 		printk("poll: out: local_resource_count=%d", local_resource_count);
 	}
 
@@ -330,13 +344,11 @@ static irqreturn_t kvm_ivshmem_interrupt(int irq, void *dev_instance) {
     KVM_IVSHMEM_DPRINTK("wake up remote_data_ready_wait_queue");
     remote_resource_count = 1;
     wake_up_interruptible(&remote_data_ready_wait_queue);
-    wake_up_interruptible(&common_wait_queue);
 
   } else if (irq == irq_remote_resource_ready) {
     KVM_IVSHMEM_DPRINTK("wake up local_data_ready_wait_queue");
     local_resource_count = 1;
     wake_up_interruptible(&local_data_ready_wait_queue);
-    wake_up_interruptible(&common_wait_queue);
 
   } else {
     printk(KERN_ERR "KVM_IVSHMEM: invalid irq number %d", irq);
@@ -531,9 +543,10 @@ static int kvm_ivshmem_open(struct inode *inode, struct file *filp) {
 
   init_waitqueue_head(&local_data_ready_wait_queue);
   init_waitqueue_head(&remote_data_ready_wait_queue);
-  init_waitqueue_head(&common_wait_queue);
+  spin_lock(&rawhide_irq_lock);
   local_resource_count = 1;
   remote_resource_count = 0;
+  spin_unlock(&rawhide_irq_lock);
 
   KVM_IVSHMEM_DPRINTK("Open OK");
   return 0;
