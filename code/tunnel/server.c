@@ -447,7 +447,11 @@ void run() {
           FATAL("epoll_ctl: conn_fd");
         }
 
-        poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
+        rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
+        if (rv < 0) {
+          fprintf(stderr, "%s:%d: shmem poll timeout\n", __FILE__, __LINE__);
+        }
+
         if (my_buffer_fds.revents ^ POLLOUT) {
           fprintf(stderr,"%s:%d: unexpected event on shmem_fd %d: 0x%x\n", __FILE__, __LINE__, shmem_fd, 
                     my_buffer_fds.events); 
@@ -524,7 +528,10 @@ void run() {
       else { // Data arrived from connected client
         /* Wait for the memory buffer to be ready */
         printf("%s:%d:Data from client. Waiting for shmem buffer\n", __FILE__, __LINE__);
-        poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
+        rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
+        if (rv < 0) {
+          fprintf(stderr, "%s:%d: shmem poll timeout\n", __FILE__, __LINE__);
+        }
         if (my_buffer_fds.revents ^ POLLOUT) {
           fprintf(stderr,"%s:%d: unexpected event on shmem_fd %d: 0x%x\n", __FILE__, __LINE__, shmem_fd, 
                     my_buffer_fds.events); 
