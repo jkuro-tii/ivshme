@@ -100,7 +100,7 @@ void shmem_sync();
 
 void report(const char *msg, int terminate) {
   char tmp[256];
-  fprintf(stderr, "%s\n", msg);
+  fprintf(stderr, "%s", msg);
   if (errno)
       perror(tmp);
   if (terminate)

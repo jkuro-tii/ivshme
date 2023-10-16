@@ -1,4 +1,4 @@
-/* drivers/char/kvm_ivshmem.c - driver for KVM Inter-VM shared memory PCI device
+* drivers/char/kvm_ivshmem.c - driver for KVM Inter-VM shared memory PCI device
  *
  * Copyright 2009 Cam Macdonell <cam@cs.ualberta.ca>
  *
@@ -218,26 +218,26 @@ static unsigned kvm_ivshmem_poll(struct file *filp,
 	if (req_events & EPOLLIN) {
 	  poll_wait(filp, &remote_data_ready_wait_queue, wait);
 
-		printk("poll: in: remote_resource_count=%d", remote_resource_count);
+		KVM_IVSHMEM_DPRINTK("poll: in: remote_resource_count=%d", remote_resource_count);
     spin_lock(&rawhide_irq_lock);
 		if (remote_resource_count) {
 			remote_resource_count = 0;
 			mask |= (POLLIN | POLLRDNORM);
 		}
     spin_unlock(&rawhide_irq_lock);
-		printk("poll: out: remote_resource_count=%d", remote_resource_count);
+		KVM_IVSHMEM_DPRINTK("poll: out: remote_resource_count=%d", remote_resource_count);
 	}
 	
 	if (req_events & EPOLLOUT) {
 	  poll_wait(filp, &local_data_ready_wait_queue, wait);
-		printk("poll: in: local_resource_count=%d", local_resource_count);
+		KVM_IVSHMEM_DPRINTK("poll: in: local_resource_count=%d", local_resource_count);
     spin_lock(&rawhide_irq_lock);
 		if (local_resource_count) {
 			local_resource_count = 0;
 			mask |= (POLLOUT | POLLWRNORM);
 		}
     spin_unlock(&rawhide_irq_lock);
-		printk("poll: out: local_resource_count=%d", local_resource_count);
+		KVM_IVSHMEM_DPRINTK("poll: out: local_resource_count=%d", local_resource_count);
 	}
 
   return mask;
@@ -362,7 +362,7 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info,
   int i, n, err;
   const char *name = "ivshmem";
 
-  printk(KERN_INFO "KVM_IVSHMEM: devname is %s", name);
+  KVM_IVSHMEM_DPRINTK(KERN_INFO "KVM_IVSHMEM: devname is %s", name);
   ivs_info->nvectors = nvectors;
 
   ivs_info->msix_entries =
@@ -375,10 +375,9 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info,
 
   n = pci_alloc_irq_vectors(ivs_info->dev, nvectors, nvectors, PCI_IRQ_MSIX);
   if (n < 0) {
-    printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors i=%d: error %d", i, n);
+    printk(KERN_ERR "KVM_IVSHMEM: pci_alloc_irq_vectors i=%d: error %d", i, n);
     return n;
   }
-  printk(KERN_INFO "KVM_IVSHMEM: pci_alloc_irq_vectors(): %d OK", n);
 
   for (i = 0; i < nvectors; i++) {
 
@@ -390,7 +389,7 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info,
                       ivs_info->msix_names[i], ivs_info);
 
     if (err) {
-      printk(KERN_INFO "KVM_IVSHMEM: couldn't allocate irq for msi-x entry %d "
+      printk(KERN_ERR "KVM_IVSHMEM: couldn't allocate irq for msi-x entry %d "
                        "with vector %d",
              i, n);
       return -ENOSPC;
@@ -470,7 +469,7 @@ static int kvm_ivshmem_probe_device(struct pci_dev *pdev,
     if (request_irq(pdev->irq, kvm_ivshmem_interrupt, IRQF_SHARED,
                     "kvm_ivshmem", &kvm_ivshmem_dev)) {
       printk(KERN_ERR "KVM_IVSHMEM: cannot get interrupt %d", pdev->irq);
-      printk(KERN_INFO "KVM_IVSHMEM: irq = %u regaddr = %x reg_size = %d",
+      printk(KERN_ERR "KVM_IVSHMEM: irq = %u regaddr = %x reg_size = %d",
              pdev->irq, kvm_ivshmem_dev.regaddr, kvm_ivshmem_dev.reg_size);
     }
   } else {
