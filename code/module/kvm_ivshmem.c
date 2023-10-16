@@ -1,4 +1,4 @@
-* drivers/char/kvm_ivshmem.c - driver for KVM Inter-VM shared memory PCI device
+/* drivers/char/kvm_ivshmem.c - driver for KVM Inter-VM shared memory PCI device
  *
  * Copyright 2009 Cam Macdonell <cam@cs.ualberta.ca>
  *
