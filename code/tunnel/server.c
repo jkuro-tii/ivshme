@@ -42,12 +42,16 @@
 /* TODO: remove */
 #define stderr stdout
 
+#if 0
+#define LOG(fmt, ...) {}
+#else
 #define LOG(fmt, ...) \
 { char tmp1[256], tmp2[256]; \
   sprintf(tmp2, fmt, __VA_ARGS__); \
   sprintf(tmp1, "%s:%d: %s\n", __FUNCTION__, __LINE__, tmp2); \
   report(tmp1, 0); \
 } 
+#endif
 
 #define ERROR(fmt, ...) \
 { char tmp1[256], tmp2[256]; \
