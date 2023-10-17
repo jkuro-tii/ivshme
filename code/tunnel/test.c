@@ -100,7 +100,7 @@ void time_start()
   gettimeofday(&time_start_s, NULL);
   real_time_start_msec = 1000.0*time_start_s.tv_sec + (double)time_start_s.tv_usec/1000.0;
 }
-void time_end(int bytes) 
+void time_end(long int bytes) 
 {
   cpu_test_time_total = (clock() - cpu_test_time_start)*1000/CLOCKS_PER_SEC;
   gettimeofday(&time_total_s, NULL);
@@ -109,7 +109,7 @@ void time_end(int bytes)
   
   printf("real_time_total_msec=%f cpu_test_time_total=%ld\n", real_time_total_msec, cpu_test_time_total);
 
-  printf("CPU time: %f Real time: %fms Data proceded: %d MiB\n",
+  printf("CPU time: %f Real time: %fms Data proceded: %ld MiB\n",
   (double) cpu_test_time_total, (double)real_time_total_msec, bytes/*/1024/1024*/);
 
   printf("I/O rate: %.2f MB/s realtime: %.2f MB/s\n", (double)bytes/1024/1024/cpu_test_time_total,
@@ -122,7 +122,8 @@ int main(int argc, char**argv)
     run_as_server = 1;
   int bufsize = 1024*1024;
   int count = 1024*10;
-  int i, total_bytes = 0;
+  int i;
+  long total_bytes = 0;
   unsigned char *buf = NULL;
   int client_fd;
   struct sockaddr_un caddr; /* client address */
@@ -180,7 +181,7 @@ int main(int argc, char**argv)
       i = read(client_fd, buf, bufsize);
       if (i <= 0) {
         time_end(total_bytes);
-        printf("Read %d bytes.\n", total_bytes);
+        printf("Read %ld bytes.\n", total_bytes);
         exit(0);
       }
       total_bytes += i;
