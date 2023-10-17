@@ -541,7 +541,7 @@ void run() {
                     my_buffer_fds.events); 
         }
 
-        ERROR("Reading from connected client #%d", events[n].data.fd);
+        LOG("Reading from connected client #%d", events[n].data.fd);
         len = read(events[n].data.fd, (void*)my_shm_data->data, sizeof(my_shm_data->data));
         if (len <= 0) {
           ERROR("read", "");
