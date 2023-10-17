@@ -110,9 +110,9 @@ void time_end(long int bytes)
   printf("real_time_total_msec=%f cpu_test_time_total=%ld\n", real_time_total_msec, cpu_test_time_total);
 
   printf("CPU time: %f Real time: %fms Data received: %ld MiB\n",
-  (double) cpu_test_time_total, (double)real_time_total_msec, bytes/*/1024/1024*/);
+  (double) cpu_test_time_total, (double)real_time_total_msec, bytes/1024/1024);
 
-  printf("I/O rate: %.2f MB/s realtime: %.2f MB/s\n", (double)bytes/1024/1024/cpu_test_time_total,
+  printf("I/O rate: %.2f MB/s realtime: %.2f MiB/s\n", (double)bytes/1024/1024/cpu_test_time_total,
               (double)bytes*1000/1024/1024/real_time_total_msec); 
 }
 
