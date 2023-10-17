@@ -121,7 +121,7 @@ int main(int argc, char**argv)
   if (argc == 1)
     run_as_server = 1;
   int bufsize = 1024*1024;
-  int count = 1024;
+  int count = 1024*10;
   int i, total_bytes = 0;
   unsigned char *buf = NULL;
   int client_fd;
