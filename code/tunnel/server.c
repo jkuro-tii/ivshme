@@ -104,9 +104,11 @@ void shmem_sync();
 
 void report(const char *msg, int terminate) {
   char tmp[256];
-  fprintf(stderr, "%s", msg);
   if (errno)
-      perror(tmp);
+      perror(msg);
+  else
+    fprintf(stderr, "%s", msg);
+
   if (terminate)
     exit(-1);
 }
@@ -311,6 +313,7 @@ void shmem_sync() {
         vm_control->iv_client = my_vmid;
         peer_vm_id = vm_control->iv_server;
       }
+      my_shm_data->cmd = CMD_SYNC;
       iv = peer_vm_id;
       if (!iv)
         continue;
@@ -418,7 +421,7 @@ void run() {
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
         LOG("Closing fd#%d", events[n].data.fd);
         if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
-          FATAL("epoll_ctl: EPOLL_CTL_DEL");
+          ERROR("epoll_ctl: EPOLL_CTL_DEL");
         }
 
         close(events[n].data.fd);
