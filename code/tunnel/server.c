@@ -42,7 +42,7 @@
 /* TODO: remove */
 #define stderr stdout
 
-#if 0
+#if 1
 #define LOG(fmt, ...) {}
 #else
 #define LOG(fmt, ...) \
@@ -421,7 +421,7 @@ void run() {
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
         LOG("Closing fd#%d", events[n].data.fd);
         if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
-          ERROR("epoll_ctl: EPOLL_CTL_DEL");
+          ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
         }
 
         close(events[n].data.fd);
