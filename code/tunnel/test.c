@@ -156,6 +156,10 @@ int main(int argc, char**argv)
     close(socket_fd);
   }
   else {
+    // Remove socket file if exists
+    if (access(CLIENT_SOCKET_FN, F_OK) == 0) {
+      remove(CLIENT_SOCKET_FN);
+    }
     strncpy(my_socket.sun_path, CLIENT_SOCKET_FN,
             sizeof(my_socket.sun_path) - 1);
     if (bind(socket_fd, (struct sockaddr *)&my_socket,
@@ -166,10 +170,10 @@ int main(int argc, char**argv)
     if (listen(socket_fd, 1) < 0)
       FATAL("listen");
 
-    LOG("server initialized", "");
+    LOG("test: server initialized", "");
 
     client_fd = accept(socket_fd, (struct sockaddr *)&caddr, &len);
-    printf("client fd=%d\n", client_fd);
+    printf("test: client fd=%d\n", client_fd);
     time_start();
     do {
 
