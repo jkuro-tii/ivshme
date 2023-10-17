@@ -109,7 +109,7 @@ void time_end(long int bytes)
   
   printf("real_time_total_msec=%f cpu_test_time_total=%ld\n", real_time_total_msec, cpu_test_time_total);
 
-  printf("CPU time: %f Real time: %fms Data proceded: %ld MiB\n",
+  printf("CPU time: %f Real time: %fms Data received: %ld MiB\n",
   (double) cpu_test_time_total, (double)real_time_total_msec, bytes/*/1024/1024*/);
 
   printf("I/O rate: %.2f MB/s realtime: %.2f MB/s\n", (double)bytes/1024/1024/cpu_test_time_total,
@@ -123,7 +123,7 @@ int main(int argc, char**argv)
   int bufsize = 1024*1024;
   int count = 1024*10;
   int i;
-  long total_bytes = 0;
+  long int total_bytes = 0;
   unsigned char *buf = NULL;
   int client_fd;
   struct sockaddr_un caddr; /* client address */
@@ -149,7 +149,7 @@ int main(int argc, char**argv)
       printf("connect");
       exit(-1);
     }
-    printf("Sending %d bytes %d times. Total %d bytes.\n", bufsize, count, bufsize*count);
+    printf("Sending %d bytes %d times. Total %ld bytes.\n", bufsize, count, (long int)bufsize*count);
     for (i = 0; i < count; i++) {
       send(socket_fd, buf, bufsize, 0);
     }
