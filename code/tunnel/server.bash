@@ -5,6 +5,7 @@ if test -f "$SOCKET"; then
   rm "$SOCKET"
 fi
 sudo rmmod kvm_ivshmem ; sudo insmod ../module/kvm_ivshmem.ko; sudo chmod a+rwx /dev/ivshmem
-./server server
+./server server &
 sleep 5
+echo "Excuting 'waypipe -d -s $SOCKET server -- weston-term'"
 waypipe -d -s "$SOCKET" server -- weston-term
