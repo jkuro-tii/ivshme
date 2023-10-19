@@ -7,8 +7,8 @@ obj-m := kvm_ivshmem.o
 # KDIR is the location of the kernel source.  The current standard is
 # to link to the associated source tree from the directory containing
 # the compiled modules.
-#KDIR  := /lib/modules/$(shell uname -r)/build
-KDIR  := /nix/store/dgrlizas65abjrxh2z7hm2gqfbwldnqs-linux-5.4.253-dev/lib/modules/5.4.253/build
+KDIR  := /run/current-system/sw/lib/modules/$(shell uname -r)/build/
+
 # PWD is the current working directory and the location of our module
 # source files.
 PWD   := $(shell pwd)
