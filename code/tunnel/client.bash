@@ -1,5 +1,6 @@
 #!/bin/sh
 
+SOCKET=./client.sock
 DEVICE=/dev/ivshmem
 MODDIR=~ghaf/ivshmem/code/module
 
