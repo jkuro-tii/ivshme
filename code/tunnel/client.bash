@@ -4,10 +4,11 @@ SOCKET=./client.sock
 DEVICE=/dev/ivshmem
 MODDIR=~ghaf/ivshmem/code/module
 
-if test -f "$SOCKET"; then
+if test -e $SOCKET; then
+  echo "Removing $SOCKET"
   rm "$SOCKET"
 fi
-if test ! -f "$DEVICE"; then
+if test ! -e "$DEVICE"; then
 echo "Loading shared memory module"
 sudo rmmod kvm_ivshmem ; sudo insmod $MODDIR/kvm_ivshmem.ko; sudo chmod a+rwx /dev/ivshmem
 fi
