@@ -15,6 +15,6 @@ sudo rmmod kvm_ivshmem ; sudo insmod $MODDIR/kvm_ivshmem.ko; sudo chmod a+rwx /d
 fi
 
 ./server server &
-sleep 5
+sleep 1
 echo "Executing 'waypipe -d -s $SOCKET server -- weston-terminal'"
 waypipe -d -s "$SOCKET" server -- weston-terminal
