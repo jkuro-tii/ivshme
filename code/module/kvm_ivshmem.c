@@ -522,7 +522,7 @@ static int __init kvm_ivshmem_init_module(void) {
     printk(KERN_ERR "KVM_IVSHMEM: Unable to register kvm_ivshmem_misc device");
     return err;
   }
-  KVM_IVSHMEM_DPRINTK("Registered the %s device ", kvm_ivshmem_misc_dev.name);
+  KVM_IVSHMEM_DPRINTK("Registered the /dev/%s device ", kvm_ivshmem_misc_dev.name);
 
   err = pci_register_driver(&kvm_ivshmem_pci_driver);
   if (err < 0) {
