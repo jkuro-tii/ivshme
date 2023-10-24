@@ -362,7 +362,7 @@ static int request_msix_vectors(struct kvm_ivshmem_device *ivs_info,
   int i, n, err;
   const char *name = "ivshmem";
 
-  KVM_IVSHMEM_DPRINTK(KERN_INFO "KVM_IVSHMEM: devname is %s", name);
+  KVM_IVSHMEM_DPRINTK("KVM_IVSHMEM: devname is %s", name);
   ivs_info->nvectors = nvectors;
 
   ivs_info->msix_entries =
