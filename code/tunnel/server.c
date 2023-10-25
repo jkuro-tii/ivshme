@@ -38,11 +38,10 @@
 #define BUFFER_SIZE (1024000)
 #define SHMEM_POLL_TIMEOUT (300)
 #define SHMEM_BUFFER_SIZE (1024000 * 2)
+#define TEST_SLEEP_TIME (3333333)
+#define SYNC_SLEEP_TIME (333333)
 
-/* TODO: remove */
-#define stderr stdout
-
-#if 1
+#if 0
 #define LOG(fmt, ...)                                                          \
   {}
 #else
@@ -54,6 +53,20 @@
     report(tmp1, 0);                                                           \
   }
 #endif
+
+#if 0
+#define LOG(fmt, ...)                                                          \
+  {}
+#else
+#define INFO(fmt, ...)                                                          \
+  {                                                                            \
+    char tmp1[256], tmp2[256];                                                 \
+    sprintf(tmp2, fmt, __VA_ARGS__);                                           \
+    sprintf(tmp1, "%s:%d: %s\n", __FUNCTION__, __LINE__, tmp2);                \
+    report(tmp1, 0);                                                           \
+  }
+#endif
+
 
 #define ERROR(fmt, ...)                                                        \
   {                                                                            \
@@ -158,7 +171,7 @@ int server_init() {
     FATAL("server_init: epoll_ctl: server_socket");
   }
 
-  LOG("server initialized", "");
+  INFO("server initialized", "");
 }
 
 int wayland_connect() {
@@ -171,8 +184,7 @@ int wayland_connect() {
     FATAL("wayland socket");
   }
 
-  fprintf(stderr, "%s:%d: wayland socket: %d\n", __FILE__, __LINE__,
-          wayland_fd);
+  LOG("wayland socket: %d", wayland_fd);
 
   memset(&socket_name, 0, sizeof(socket_name));
   socket_name.sun_family = AF_UNIX;
@@ -189,7 +201,7 @@ int wayland_connect() {
     FATAL("epoll_ctl: wayland_fd");
   }
 
-  LOG("client side initialized", "");
+  INFO("client initialized", "");
   return wayland_fd;
 }
 
@@ -205,7 +217,7 @@ void make_wayland_connection(int peer_fd) {
     }
   }
 
-  fprintf(stderr, "FAILED fd#%d\n", peer_fd);
+  ERROR("FAILED fd#%d", peer_fd);
   FATAL("fd_map table full");
 }
 
@@ -221,7 +233,7 @@ int get_wayland_fd(int peer_fd, int close) {
       return rv;
     }
   }
-  fprintf(stderr, "FAILED fd#%d\n", peer_fd);
+  ERROR("FAILED fd#%d", peer_fd);
   FATAL("peer fd  not found");
   return -1;
 }
@@ -256,16 +268,15 @@ void shmem_test() {
 
   counter = my_vmid;
 
-  fprintf(stderr, "%s:%d my_vmid=0x%x my_shm_data=%p\n", __FILE__, __LINE__,
-          my_vmid, my_shm_data);
+  INFO("my_vmid=0x%x my_shm_data=%p\n", my_vmid, my_shm_data);
   do {
     res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
     if (res && (fds.revents & POLLIN)) {
       data = my_shm_data->len;
       my_shm_data->len = -1;
       iv = peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC;
-      fprintf(stderr, "%s:%d received %02x \n", __FILE__, __LINE__, data);
-      usleep(random() % 3333333);
+      LOG("received %02x", data);
+      usleep(random() % TEST_SLEEP_TIME);
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       if (res < 0) {
         FATAL("SHMEM_IOCDORBELL failed");
@@ -273,13 +284,13 @@ void shmem_test() {
     }
 
     if (res && (fds.revents & POLLOUT)) {
-      fprintf(stderr, "%s:%d POLLOUT", __FILE__, __LINE__);
+      LOG("POLLOUT", "");
 
       peer_shm_data->len = counter;
       iv = peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC;
-      fprintf(stderr, "%s:%d sending %02x\n", __FILE__, __LINE__, counter);
+      LOG("sending %02x", counter);
       counter++;
-      usleep(random() % 3333333);
+      usleep(random() % TEST_SLEEP_TIME);
       res = ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
       if (res < 0) {
         FATAL("SHMEM_IOCDORBELL failed");
@@ -299,9 +310,9 @@ void shmem_sync() {
   else
     vm_control->iv_server = 0;
 
-  fprintf(stderr, "%s:%d Syncing...\n", __FILE__, __LINE__);
+  INFO("Syncing", "");
   do {
-    usleep(random() % 333333);
+    usleep(random() % SYNC_SLEEP_TIME);
     if (run_as_server) {
       vm_control->iv_server = my_vmid;
       peer_vm_id = vm_control->iv_client;
@@ -322,13 +333,13 @@ void shmem_sync() {
   } while (1);
 
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0x5555);
-  fprintf(stderr, "%s:%d done\n", __FILE__, __LINE__);
+  INFO("done", "");
 }
 
 int shmem_init() {
   int res = -1;
 
-  fprintf(stderr, "%s:%d Waiting for devices setup...\n", __FILE__, __LINE__);
+  INFO("Waiting for devices setup", "");
   sleep(1);
 
   /* Open shared memory */
@@ -363,15 +374,16 @@ int shmem_init() {
   if (res < 0) {
     FATAL("ioctl SHMEM_IOCIVPOSN failed");
   }
-  LOG("My VM id = 0x%x running as a ", my_vmid);
+  //INFO("My VM id = 0x%x running as a ", my_vmid);
   my_vmid = my_vmid << 16;
   if (run_as_server) {
-    LOG("server", "");
+    INFO("server", "");
     vm_control->iv_server = my_vmid;
   } else {
-    LOG("client", "");
+    INFO("client", "");
     vm_control->iv_client = my_vmid;
   }
+  INFO("My VM id = 0x%x running as a ", my_vmid, run_as_server? "server":"client"  );
 
   // shmem_test();
   shmem_sync();
@@ -383,7 +395,7 @@ int shmem_init() {
   }
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0x5554);
 
-  LOG("shared memory initialized", "");
+  INFO("shared memory initialized", "");
 
   return 0;
 }
@@ -411,8 +423,8 @@ void run() {
 
       LOG("Event 0x%x on fd %d", events[n].events, events[n].data.fd)
 
+      /* Handling connection close */
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
-        /* Handling connection close */
         LOG("Closing fd#%d", events[n].data.fd);
         if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
           ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
@@ -438,8 +450,8 @@ void run() {
         continue;
       }
       
+      /* Handle the new connection on the socket */
       if (run_as_server && events[n].data.fd == server_socket) {
-        /* Handle the new connection on socket */
         conn_fd = accept(server_socket, (struct sockaddr *)&caddr, &len);
         if (conn_fd == -1) {
           FATAL("accept");
@@ -466,11 +478,12 @@ void run() {
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
         LOG("Added client on fd %d", conn_fd);
+      } 
 
-      } else if (!run_as_server &&
+      /* Display side: received data from Wayland server. It needs to be
+         sent to the peer */
+      else if (!run_as_server &&
                  get_remote_socket(events[n].data.fd, 0, 1) > 0) {
-        /* We received data from Wayland server which needs to be
-           sent to be peer */
 
         int remote_fd = get_remote_socket(events[n].data.fd, 0, 1);
         LOG("get_remote_socket: %d", remote_fd);
@@ -479,29 +492,31 @@ void run() {
         LOG("Data from wayland. Waiting for shmem buffer", "");
         poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
         if (my_buffer_fds.revents ^ POLLOUT) {
-          fprintf(stderr, "%s:%d: unexpected event on shmem_fd %d: 0x%x\n",
-                  __FILE__, __LINE__, shmem_fd, my_buffer_fds.events);
+          ERROR("unexpected event on shmem_fd %d: 0x%x",
+                  shmem_fd, my_buffer_fds.events);
         }
-        fprintf(stderr, "%s:%d: %s\n", __FILE__, __LINE__,
-                "Reading from wayland socket");
+
+        LOG("Reading from wayland socket", "");
         len = read(events[n].data.fd, (void *)my_shm_data->data,
                    sizeof(my_shm_data->data));
         if (len <= 0) {
           ERROR("read", "");
           continue;
         }
-        fprintf(stderr, "%s:%d:Read & sent %d bytes on fd#%d sending to %d\n",
-                __FILE__, __LINE__, len, events[n].data.fd, remote_fd);
+        LOG("Read & sent %d bytes on fd#%d sending to %d\n",
+                len, events[n].data.fd, remote_fd);
 
-        // Send the data to the peer server
+        /* Send the data to the peer Wayland app server */
         my_shm_data->cmd = CMD_DATA;
         my_shm_data->fd = remote_fd;
         my_shm_data->len = len;
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
+      } 
 
-      } else if (events[n].data.fd ==
-                 shmem_fd) { // Data arrived from the peer via shared memory
+      /* Both sides: Received data from the peer via shared memory*/
+      else if (events[n].data.fd ==
+                 shmem_fd) { 
         LOG("shmem_fd event: 0x%x cmd: %d remote fd: %d", events[n].events,
             peer_shm_data->cmd, peer_shm_data->fd);
 
@@ -534,17 +549,20 @@ void run() {
           }
         }
 
+        /* Signal the other side that it's buffer has been processed */
         LOG("Exec ioctl REMOTE_RESOURCE_CONSUMED_INT_VEC", "");
         peer_shm_data->cmd = -1;
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC);
 
-      } // End of "data arrived from the peer via shared memory"
+      } /* End of "data arrived from the peer via shared memory" */
+
       else if (events[n].data.fd == server_socket) {
         LOG("readserver socket", "");
       }
 
-      else { // Data arrived from connected client
+      /* Server side: Data arrived from connected waypipe server */ 
+      else { 
         /* Wait for the memory buffer to be ready */
         LOG("Data from client. Waiting for shmem buffer", "");
         rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
@@ -564,12 +582,14 @@ void run() {
           continue;
         }
         LOG("Read %d bytes on fd#%d", len, events[n].data.fd);
+
+        /* Send the data to the wayland display side */
         my_shm_data->cmd = CMD_DATA;
         my_shm_data->fd = events[n].data.fd;
         my_shm_data->len = len;
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
-      } // End of "Data arrived from connected client"
+      } // End of "Data arrived from connected waypipe server"
     }
   } /* while(1) */
 }
