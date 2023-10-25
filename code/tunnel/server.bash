@@ -14,7 +14,7 @@ echo "Loading shared memory module"
 sudo rmmod kvm_ivshmem ; sudo insmod $MODDIR/kvm_ivshmem.ko; sudo chmod a+rwx /dev/ivshmem
 fi
 
-./server server &
-sleep 1
+./memsocket -s "$SOCKET"
+
 echo "Executing 'waypipe -d -s $SOCKET server -- weston-terminal'"
 waypipe -d -s "$SOCKET" server -- weston-terminal

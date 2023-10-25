@@ -16,4 +16,4 @@ fi
 
 echo "Starting waypipe in background"
 waypipe  -s "$SOCKET" client &
-./server
+./memsocket -c "$SOCKET"
