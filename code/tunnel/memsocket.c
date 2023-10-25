@@ -42,7 +42,7 @@
 #define TEST_SLEEP_TIME (3333333)
 #define SYNC_SLEEP_TIME (333333)
 
-#if 0
+#if 1
 #define DEBUG(fmt, ...)                                                          \
   {}
 #else
@@ -447,7 +447,7 @@ void run() {
           my_shm_data->fd = events[n].data.fd;
         else {
           DEBUG("get_remote_socket: %d",
-              get_remote_socket(events[n].data.fd, 1, 1));
+              get_remote_socket(events[n].data.fd, 0, 1));
           my_shm_data->fd = get_remote_socket(events[n].data.fd, 1, 0);
         }
         DEBUG("Sending close request for %d", my_shm_data->fd);
