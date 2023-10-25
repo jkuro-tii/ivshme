@@ -145,10 +145,6 @@ int get_shmem_size() {
 int server_init() {
   struct sockaddr_un socket_name;
 
-  // Remove socket file if exists
-  if (access(socket_path, F_OK) == 0) {
-    remove(socket_path);
-  }
   server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (server_socket < 0) {
     FATAL("server socket");
@@ -224,7 +220,7 @@ void make_wayland_connection(int peer_fd) {
   FATAL("fd_map table full");
 }
 
-int get_wayland_fd(int peer_fd, int close) {
+int map_peer_fd(int peer_fd, int close) {
 
   int i, rv;
 
@@ -537,7 +533,7 @@ void run() {
         
         else if (peer_shm_data->cmd == CMD_DATA) {
           n = run_as_server ? peer_shm_data->fd
-                            : get_wayland_fd(peer_shm_data->fd, 0);
+                            : map_peer_fd(peer_shm_data->fd, 0);
           DEBUG("shmem: received %d bytes for %d", peer_shm_data->len, n);
           rv = write(n, (void *)peer_shm_data->data, peer_shm_data->len);
           if (rv != peer_shm_data->len) {
@@ -554,7 +550,7 @@ void run() {
             DEBUG("Closing %d", peer_shm_data->fd);
             close(peer_shm_data->fd);
           } else {
-            int fd = get_wayland_fd(peer_shm_data->fd, 1);
+            int fd = map_peer_fd(peer_shm_data->fd, 1);
             DEBUG("Closing %d peer fd=%d", fd, peer_shm_data->fd);
             close(fd);
           }
