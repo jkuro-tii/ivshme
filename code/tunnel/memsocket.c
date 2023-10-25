@@ -1,3 +1,6 @@
+/* Copyright 2022-2023 TII (SSRC) and the Ghaf contributors
+   SPDX-License-Identifier: Apache-2.0
+*/
 #include <arpa/inet.h>
 #include <errno.h>
 #include <execinfo.h>
@@ -381,15 +384,11 @@ int shmem_init() {
   if (res < 0) {
     FATAL("ioctl SHMEM_IOCIVPOSN failed");
   }
-  //INFO("My VM id = 0x%x running as a ", my_vmid);
   my_vmid = my_vmid << 16;
-  if (run_as_server) {
-    INFO("server", "");
+  if (run_as_server) 
     vm_control->iv_server = my_vmid;
-  } else {
-    INFO("client", "");
+  else
     vm_control->iv_client = my_vmid;
-  }
   INFO("My VM id = 0x%x running as a ", my_vmid, run_as_server? "server":"client"  );
 
   // shmem_test();

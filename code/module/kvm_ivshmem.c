@@ -1,6 +1,9 @@
 /* drivers/char/kvm_ivshmem.c - driver for KVM Inter-VM shared memory PCI device
+
+ * Copyright 2022-2023 TII (SSRC) and the Ghaf contributors
+ * SPDX-License-Identifier: Apache-2.0
  *
- * Copyright 2009 Cam Macdonell <cam@cs.ualberta.ca>
+ *  Copyright 2009 Cam Macdonell <cam@cs.ualberta.ca>
  *
  * Based on cirrusfb.c and 8139cp.c:
  *         Copyright 1999-2001 Jeff Garzik
