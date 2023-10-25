@@ -307,10 +307,8 @@ void shmem_sync() {
   unsigned int static counter = 0;
   struct pollfd fds = {.fd = shmem_fd, .events = POLLIN, .revents = 0};
 
-  if (run_as_server)
-    vm_control->iv_client = 0;
-  else
-    vm_control->iv_server = 0;
+  vm_control->iv_client = 0;
+  vm_control->iv_server = 0;
 
   INFO("Syncing", "");
   do {
@@ -324,8 +322,9 @@ void shmem_sync() {
     }
     my_shm_data->cmd = CMD_SYNC;
     iv = peer_vm_id;
-    if (!iv)
+    if (!iv) /* If peer hasn't filled its id, wait */
       continue;
+      
     iv |= LOCAL_RESOURCE_READY_INT_VEC;
     peer_shm_data->len = 0;
     ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
@@ -334,7 +333,8 @@ void shmem_sync() {
       break;
   } while (1);
 
-  ioctl(shmem_fd, SHMEM_IOCRESTART, 0x5555);
+  /* Force that local buffer is unlocked */
+  ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
   INFO("done", "");
 }
 
