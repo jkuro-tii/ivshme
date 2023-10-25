@@ -341,7 +341,7 @@ void shmem_sync() {
   /* Continue execution in background */
   pid_t npid = fork();
   if (npid < 0)
-    FATAL("for");
+    FATAL("fork");
 
   if (npid)
     exit(0);

@@ -14,6 +14,6 @@ echo "Loading shared memory module"
 sudo rmmod kvm_ivshmem ; sudo insmod $MODDIR/kvm_ivshmem.ko; sudo chmod a+rwx /dev/ivshmem
 fi
 
-echo "Starting waypipe in background"
-waypipe  -s "$SOCKET" client &
 ./memsocket -c "$SOCKET"
+echo "Starting waypipe in background"
+waypipe  -s "$SOCKET" client
