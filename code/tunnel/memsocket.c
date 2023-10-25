@@ -19,9 +19,6 @@
 #include <sys/un.h>
 #include <unistd.h>
 
-#define CLIENT_TIMEOUT (1000)
-#define SERVER_TIMEOUT (1000)
-
 #define SHM_DEVICE_FN "/dev/ivshmem"
 #define SHMEM_IOC_MAGIC 's'
 
@@ -43,10 +40,10 @@
 #define SYNC_SLEEP_TIME (333333)
 
 #if 1
-#define DEBUG(fmt, ...)                                                          \
+#define DEBUG(fmt, ...)                                                        \
   {}
 #else
-#define DEBUG(fmt, ...)                                                          \
+#define DEBUG(fmt, ...)                                                        \
   {                                                                            \
     char tmp1[256], tmp2[256];                                                 \
     sprintf(tmp2, fmt, __VA_ARGS__);                                           \
@@ -64,18 +61,17 @@
   {                                                                            \
     char tmp1[256], tmp2[256];                                                 \
     sprintf(tmp2, fmt, __VA_ARGS__);                                           \
-    sprintf(tmp1, "%s:%d: %s\n", __FUNCTION__, __LINE__, tmp2);                \
+    sprintf(tmp1, "[%s:%d] %s\n", __FUNCTION__, __LINE__, tmp2);               \
     errno = 0;                                                                 \
     report(tmp1, 0);                                                           \
   }
 #endif
 
-
 #define ERROR(fmt, ...)                                                        \
   {                                                                            \
     char tmp1[256], tmp2[256];                                                 \
     sprintf(tmp2, fmt, __VA_ARGS__);                                           \
-    sprintf(tmp1, "%s:%d: %s\n", __FUNCTION__, __LINE__, tmp2);                \
+    sprintf(tmp1, "[%s:%d] %s\n", __FUNCTION__, __LINE__, tmp2);               \
     report(tmp1, 0);                                                           \
   }
 
@@ -83,7 +79,7 @@
   {                                                                            \
     char tmp1[256], tmp2[256];                                                 \
     sprintf(tmp2, msg);                                                        \
-    sprintf(tmp1, "%s:%d: %s\n", __FUNCTION__, __LINE__, tmp2);                \
+    sprintf(tmp1, "[%s:%d]: %s\n", __FUNCTION__, __LINE__, tmp2);              \
     report(tmp1, 1);                                                           \
   }
 
@@ -120,8 +116,7 @@ struct {
 
 void shmem_sync();
 
-static const char usage_string[] =
-  "Usage: memsocket [-c|-s] socket_path\n";
+static const char usage_string[] = "Usage: memsocket [-c|-s] socket_path\n";
 
 void report(const char *msg, int terminate) {
   char tmp[256];
@@ -157,8 +152,7 @@ int server_init() {
 
   memset(&socket_name, 0, sizeof(socket_name));
   socket_name.sun_family = AF_UNIX;
-  strncpy(socket_name.sun_path, socket_path,
-          sizeof(socket_name.sun_path) - 1);
+  strncpy(socket_name.sun_path, socket_path, sizeof(socket_name.sun_path) - 1);
   if (bind(server_socket, (struct sockaddr *)&socket_name,
            sizeof(socket_name)) < 0) {
     FATAL("bind");
@@ -190,8 +184,7 @@ int wayland_connect() {
 
   memset(&socket_name, 0, sizeof(socket_name));
   socket_name.sun_family = AF_UNIX;
-  strncpy(socket_name.sun_path, socket_path,
-          sizeof(socket_name.sun_path) - 1);
+  strncpy(socket_name.sun_path, socket_path, sizeof(socket_name.sun_path) - 1);
   if (connect(wayland_fd, (struct sockaddr *)&socket_name,
               sizeof(socket_name)) < 0) {
     FATAL("connect");
@@ -385,11 +378,12 @@ int shmem_init() {
     FATAL("ioctl SHMEM_IOCIVPOSN failed");
   }
   my_vmid = my_vmid << 16;
-  if (run_as_server) 
+  if (run_as_server)
     vm_control->iv_server = my_vmid;
   else
     vm_control->iv_client = my_vmid;
-  INFO("My VM id = 0x%x running as a ", my_vmid, run_as_server? "server":"client"  );
+  INFO("My VM id = 0x%x running as a ", my_vmid,
+       run_as_server ? "server" : "client");
 
   // shmem_test();
   shmem_sync();
@@ -447,7 +441,7 @@ void run() {
           my_shm_data->fd = events[n].data.fd;
         else {
           DEBUG("get_remote_socket: %d",
-              get_remote_socket(events[n].data.fd, 0, 1));
+                get_remote_socket(events[n].data.fd, 0, 1));
           my_shm_data->fd = get_remote_socket(events[n].data.fd, 1, 0);
         }
         DEBUG("Sending close request for %d", my_shm_data->fd);
@@ -455,7 +449,7 @@ void run() {
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
         continue;
       }
-      
+
       /* Handle the new connection on the socket */
       if (run_as_server && events[n].data.fd == server_socket) {
         conn_fd = accept(server_socket, (struct sockaddr *)&caddr, &len);
@@ -484,12 +478,12 @@ void run() {
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
         DEBUG("Added client on fd %d", conn_fd);
-      } 
+      }
 
       /* Display side: received data from Wayland server. It needs to be
          sent to the peer */
       else if (!run_as_server &&
-                 get_remote_socket(events[n].data.fd, 0, 1) > 0) {
+               get_remote_socket(events[n].data.fd, 0, 1) > 0) {
 
         int remote_fd = get_remote_socket(events[n].data.fd, 0, 1);
         DEBUG("get_remote_socket: %d", remote_fd);
@@ -498,8 +492,8 @@ void run() {
         DEBUG("Data from wayland. Waiting for shmem buffer", "");
         poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
         if (my_buffer_fds.revents ^ POLLOUT) {
-          ERROR("unexpected event on shmem_fd %d: 0x%x",
-                  shmem_fd, my_buffer_fds.events);
+          ERROR("unexpected event on shmem_fd %d: 0x%x", shmem_fd,
+                my_buffer_fds.events);
         }
 
         DEBUG("Reading from wayland socket", "");
@@ -509,8 +503,8 @@ void run() {
           ERROR("read", "");
           continue;
         }
-        DEBUG("Read & sent %d bytes on fd#%d sending to %d\n",
-                len, events[n].data.fd, remote_fd);
+        DEBUG("Read & sent %d bytes on fd#%d sending to %d\n", len,
+              events[n].data.fd, remote_fd);
 
         /* Send the data to the peer Wayland app server */
         my_shm_data->cmd = CMD_DATA;
@@ -518,18 +512,17 @@ void run() {
         my_shm_data->len = len;
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
-      } 
+      }
 
       /* Both sides: Received data from the peer via shared memory*/
-      else if (events[n].data.fd ==
-                 shmem_fd) { 
+      else if (events[n].data.fd == shmem_fd) {
         DEBUG("shmem_fd event: 0x%x cmd: %d remote fd: %d", events[n].events,
-            peer_shm_data->cmd, peer_shm_data->fd);
+              peer_shm_data->cmd, peer_shm_data->fd);
 
         if (peer_shm_data->cmd == -1) {
           ERROR("INVALID CMD!", "");
-        } 
-        
+        }
+
         else if (peer_shm_data->cmd == CMD_DATA) {
           n = run_as_server ? peer_shm_data->fd
                             : map_peer_fd(peer_shm_data->fd, 0);
@@ -567,8 +560,8 @@ void run() {
         DEBUG("readserver socket", "");
       }
 
-      /* Server side: Data arrived from connected waypipe server */ 
-      else { 
+      /* Server side: Data arrived from connected waypipe server */
+      else {
         /* Wait for the memory buffer to be ready */
         DEBUG("Data from client. Waiting for shmem buffer", "");
         rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
@@ -600,23 +593,22 @@ void run() {
   } /* while(1) */
 }
 
-void print_usage_and_exit()
-{
-    fprintf(stderr, usage_string);
-    exit(1);
+void print_usage_and_exit() {
+  fprintf(stderr, usage_string);
+  exit(1);
 }
 int main(int argc, char **argv) {
 
   int i;
 
-  if (argc != 3) 
+  if (argc != 3)
     print_usage_and_exit();
 
-  if (!strcmp(argv[1], "-c")){
+  if (!strcmp(argv[1], "-c")) {
     run_as_server = 0;
-  } else if (!strcmp(argv[1], "-s")){
+  } else if (!strcmp(argv[1], "-s")) {
     run_as_server = 1;
-  } else 
+  } else
     print_usage_and_exit();
 
   socket_path = argv[2];
