@@ -29,7 +29,7 @@ DEFINE_SPINLOCK(rawhide_irq_lock);
 #define REMOTE_RESOURCE_CONSUMED_INT_VEC (0)
 #define LOCAL_RESOURCE_READY_INT_VEC (1)
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 #define KVM_IVSHMEM_DPRINTK(fmt, ...)                                          \
   do {                                                                         \
