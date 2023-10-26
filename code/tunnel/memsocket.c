@@ -39,7 +39,7 @@
 #define TEST_SLEEP_TIME (3333333)
 #define SYNC_SLEEP_TIME (333333)
 
-#if 1
+#if 0
 #define DEBUG(fmt, ...)                                                        \
   {}
 #else
@@ -53,8 +53,8 @@
   }
 #endif
 
-#if 1
-#define LOG(fmt, ...)                                                          \
+#if 0
+#define INFO(fmt, ...)                                                          \
   {}
 #else
 #define INFO(fmt, ...)                                                         \

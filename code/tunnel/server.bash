@@ -16,5 +16,5 @@ fi
 
 ./memsocket -s "$SOCKET"
 
-echo "Executing 'waypipe -d -s $SOCKET server -- weston-terminal'"
+echo "Executing 'waypipe -d -s $SOCKET server -- firefox'"
 waypipe -d -s "$SOCKET" server -- firefox
