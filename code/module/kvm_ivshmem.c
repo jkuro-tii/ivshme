@@ -563,8 +563,6 @@ static int kvm_ivshmem_mmap(struct file *filp, struct vm_area_struct *vma) {
   unsigned long off;
   unsigned long start;
 
-  //	lock_kernel();
-
   off = vma->vm_pgoff << PAGE_SHIFT;
   start = kvm_ivshmem_dev.ioaddr;
 
@@ -572,17 +570,15 @@ static int kvm_ivshmem_mmap(struct file *filp, struct vm_area_struct *vma) {
   start &= PAGE_MASK;
 
   printk(KERN_INFO
-         "KVM_IVSHMEM: mmap: vma->vm_start=0x%lx..vma->vm_end=0x%lx off=0x%lx",
+         "KVM_IVSHMEM: mmap: vma->vm_start=0x%lx vma->vm_end=0x%lx off=0x%lx",
          vma->vm_start, vma->vm_end, off);
   printk(
       KERN_INFO
       "KVM_IVSHMEM: mmap: vma->vm_end - vma->vm_start + off=0x%lx > len=0x%lx",
       (vma->vm_end - vma->vm_start + off), len);
 
-  if ((vma->vm_end - vma->vm_start + off) > len) {
-    // unlock_kernel();
+  if ((vma->vm_end - vma->vm_start + off) > len)
     return -EINVAL;
-  }
 
   off += start;
   vma->vm_pgoff = off >> PAGE_SHIFT;
@@ -592,10 +588,8 @@ static int kvm_ivshmem_mmap(struct file *filp, struct vm_area_struct *vma) {
   if (io_remap_pfn_range(vma, vma->vm_start, off >> PAGE_SHIFT,
                          vma->vm_end - vma->vm_start, vma->vm_page_prot)) {
     KVM_IVSHMEM_DPRINTK("mmap failed");
-    // unlock_kernel();
     return -ENXIO;
   }
-  // unlock_kernel();
 
   return 0;
 }
