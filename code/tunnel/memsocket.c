@@ -39,7 +39,7 @@
 #define TEST_SLEEP_TIME (3333333)
 #define SYNC_SLEEP_TIME (333333)
 
-#if 0
+#if 1
 #define DEBUG(fmt, ...)                                                        \
   {}
 #else
@@ -502,14 +502,13 @@ void run() {
           }
 
           else if (peer_shm_data->cmd == CMD_DATA) {
-            int fd_n;
-            fd_n = run_as_server ? peer_shm_data->fd
+            conn_fd = run_as_server ? peer_shm_data->fd
                               : map_peer_fd(peer_shm_data->fd, 0);
-            DEBUG("shmem: received %d bytes for %d", peer_shm_data->len, fd_n);
-            rv = write(fd_n, (void *)peer_shm_data->data, peer_shm_data->len);
+            DEBUG("shmem: received %d bytes for %d", peer_shm_data->len, conn_fd);
+            rv = write(conn_fd, (void *)peer_shm_data->data, peer_shm_data->len);
             if (rv != peer_shm_data->len) {
               ERROR("Wrote %d out of %d bytes on fd#%d", rv, peer_shm_data->len,
-                    fd_n);
+                    conn_fd);
             }
             DEBUG("Received data sent", "");
 

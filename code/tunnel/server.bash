@@ -17,4 +17,4 @@ fi
 ./memsocket -s "$SOCKET"
 
 echo "Executing 'waypipe -d -s $SOCKET server -- firefox'"
-waypipe -d -s "$SOCKET" server -- firefox
+waypipe -s "$SOCKET" server -- firefox
