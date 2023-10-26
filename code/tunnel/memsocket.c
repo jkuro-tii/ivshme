@@ -54,7 +54,7 @@
 #endif
 
 #if 0
-#define INFO(fmt, ...)                                                          \
+#define INFO(fmt, ...)                                                         \
   {}
 #else
 #define INFO(fmt, ...)                                                         \
@@ -342,9 +342,6 @@ void shmem_sync() {
 int shmem_init() {
   int res = -1;
 
-  INFO("Waiting for devices setup", "");
-  sleep(1);
-
   /* Open shared memory */
   shmem_fd = open(SHM_DEVICE_FN, O_RDWR);
   if (shmem_fd < 0) {
@@ -461,7 +458,7 @@ void run() {
         /* Display side: received data from Wayland server. It needs to be
           sent to the peer */
         else if (!run_as_server &&
-                get_remote_socket(events[n].data.fd, 0, 1) > 0) {
+                 get_remote_socket(events[n].data.fd, 0, 1) > 0) {
 
           int remote_fd = get_remote_socket(events[n].data.fd, 0, 1);
           DEBUG("get_remote_socket: %d", remote_fd);
@@ -476,7 +473,7 @@ void run() {
 
           DEBUG("Reading from wayland socket", "");
           len = read(events[n].data.fd, (void *)my_shm_data->data,
-                    sizeof(my_shm_data->data));
+                     sizeof(my_shm_data->data));
           if (len <= 0) {
             ERROR("read", "");
             continue;
@@ -503,9 +500,11 @@ void run() {
 
           else if (peer_shm_data->cmd == CMD_DATA) {
             conn_fd = run_as_server ? peer_shm_data->fd
-                              : map_peer_fd(peer_shm_data->fd, 0);
-            DEBUG("shmem: received %d bytes for %d", peer_shm_data->len, conn_fd);
-            rv = write(conn_fd, (void *)peer_shm_data->data, peer_shm_data->len);
+                                    : map_peer_fd(peer_shm_data->fd, 0);
+            DEBUG("shmem: received %d bytes for %d", peer_shm_data->len,
+                  conn_fd);
+            rv =
+                write(conn_fd, (void *)peer_shm_data->data, peer_shm_data->len);
             if (rv != peer_shm_data->len) {
               ERROR("Wrote %d out of %d bytes on fd#%d", rv, peer_shm_data->len,
                     conn_fd);
@@ -553,7 +552,7 @@ void run() {
 
           DEBUG("Reading from connected client #%d", events[n].data.fd);
           len = read(events[n].data.fd, (void *)my_shm_data->data,
-                    sizeof(my_shm_data->data));
+                     sizeof(my_shm_data->data));
           if (len <= 0) {
             ERROR("read", "");
             continue;
