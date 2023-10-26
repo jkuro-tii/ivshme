@@ -481,7 +481,7 @@ void run() {
             ERROR("read", "");
             continue;
           }
-          DEBUG("Read & sent %d bytes on fd#%d sending to %d\n", len,
+          DEBUG("Read & sent %d bytes on fd#%d sent to %d\n", len,
                 events[n].data.fd, remote_fd);
 
           /* Send the data to the peer Wayland app server */
@@ -502,13 +502,14 @@ void run() {
           }
 
           else if (peer_shm_data->cmd == CMD_DATA) {
-            n = run_as_server ? peer_shm_data->fd
+            int fd_n;
+            fd_n = run_as_server ? peer_shm_data->fd
                               : map_peer_fd(peer_shm_data->fd, 0);
-            DEBUG("shmem: received %d bytes for %d", peer_shm_data->len, n);
-            rv = write(n, (void *)peer_shm_data->data, peer_shm_data->len);
+            DEBUG("shmem: received %d bytes for %d", peer_shm_data->len, fd_n);
+            rv = write(fd_n, (void *)peer_shm_data->data, peer_shm_data->len);
             if (rv != peer_shm_data->len) {
               ERROR("Wrote %d out of %d bytes on fd#%d", rv, peer_shm_data->len,
-                    n);
+                    fd_n);
             }
             DEBUG("Received data sent", "");
 
@@ -558,7 +559,7 @@ void run() {
             ERROR("read", "");
             continue;
           }
-          DEBUG("Read %d bytes on fd#%d", len, events[n].data.fd);
+          DEBUG("Read & sent %d bytes on fd#%d", len, events[n].data.fd);
 
           /* Send the data to the wayland display side */
           my_shm_data->cmd = CMD_DATA;
