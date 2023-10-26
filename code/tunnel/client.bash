@@ -15,5 +15,5 @@ sudo rmmod kvm_ivshmem ; sudo insmod $MODDIR/kvm_ivshmem.ko; sudo chmod a+rwx /d
 fi
 
 ./memsocket -c "$SOCKET"
-echo "Starting waypipe in background"
+echo "Starting waypipe"
 waypipe  -s "$SOCKET" client
