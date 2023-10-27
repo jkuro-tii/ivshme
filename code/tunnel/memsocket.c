@@ -445,7 +445,7 @@ void run() {
 
           if (my_buffer_fds.revents ^ POLLOUT) {
             ERROR("unexpected event on shmem_fd %d: 0x%x", shmem_fd,
-                  my_buffer_fds.events);
+                  my_buffer_fds.revents);
           }
           // Send connect request to the wayland peer
           my_shm_data->cmd = CMD_CONNECT;
@@ -468,14 +468,14 @@ void run() {
           poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
           if (my_buffer_fds.revents ^ POLLOUT) {
             ERROR("unexpected event on shmem_fd %d: 0x%x", shmem_fd,
-                  my_buffer_fds.events);
+                  my_buffer_fds.revents);
           }
 
           DEBUG("Reading from wayland socket", "");
           len = read(events[n].data.fd, (void *)my_shm_data->data,
                      sizeof(my_shm_data->data));
           if (len <= 0) {
-            ERROR("read", "");
+            ERROR("read from wayland socket failed fd=%d", events[n].data.fd);
             continue;
           }
           DEBUG("Read & sent %d bytes on fd#%d sent to %d\n", len,
@@ -495,7 +495,7 @@ void run() {
                 peer_shm_data->cmd, peer_shm_data->fd);
 
           if (peer_shm_data->cmd == -1) {
-            ERROR("INVALID CMD!", "");
+            ERROR("Imvalid CMD from peer!", "");
           }
 
           else if (peer_shm_data->cmd == CMD_DATA) {
@@ -516,19 +516,16 @@ void run() {
 
           } else if (peer_shm_data->cmd == CMD_CLOSE) {
             if (run_as_server) {
-              DEBUG("Closing %d", peer_shm_data->fd);
-              if (epoll_ctl(epollfd, EPOLL_CTL_DEL, peer_shm_data->fd, NULL) == -1) {
-                ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
-              }
-              close(peer_shm_data->fd);
+              conn_fd = peer_shm_data->fd;
+              DEBUG("Closing %d", conn_fd);
             } else {
-              int fd = map_peer_fd(peer_shm_data->fd, 1);
-              DEBUG("Closing %d peer fd=%d", fd, peer_shm_data->fd);
-              if (epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL) == -1) {
-                ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
-              }
-              close(fd);
+              conn_fd = map_peer_fd(peer_shm_data->fd, 1);
+              DEBUG("Closing %d peer fd=%d", conn_fd, peer_shm_data->fd);
             }
+            if (epoll_ctl(epollfd, EPOLL_CTL_DEL, conn_fd, NULL) == -1) {
+              ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
+            }
+            close(conn_fd);
           }
 
           /* Signal the other side that it's buffer has been processed */
@@ -560,7 +557,7 @@ void run() {
           len = read(events[n].data.fd, (void *)my_shm_data->data,
                      sizeof(my_shm_data->data));
           if (len <= 0) {
-            ERROR("read", "");
+            ERROR("read from connected client failed fd=%d", events[n].data.fd);
             continue;
           }
           DEBUG("Read & sent %d bytes on fd#%d", len, events[n].data.fd);
