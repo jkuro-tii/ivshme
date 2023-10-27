@@ -216,14 +216,14 @@ void make_wayland_connection(int peer_fd) {
   FATAL("fd_map table full");
 }
 
-int map_peer_fd(int peer_fd, int close) {
+int map_peer_fd(int peer_fd, int close_fd) {
 
   int i, rv;
 
   for (i = 0; i < FD_MAP_COUNT; i++) {
     if (fd_map[i].remote_fd == peer_fd) {
       rv = fd_map[i].my_fd;
-      if (close)
+      if (close_fd)
         fd_map[i].my_fd = -1;
       return rv;
     }
@@ -233,13 +233,13 @@ int map_peer_fd(int peer_fd, int close) {
   return -1;
 }
 
-int get_remote_socket(int my_fd, int close, int ignore_error) {
+int get_remote_socket(int my_fd, int close_fd, int ignore_error) {
 
   int i;
 
   for (i = 0; i < FD_MAP_COUNT; i++) {
     if (fd_map[i].my_fd == my_fd) {
-      if (close)
+      if (close_fd)
         fd_map[i].my_fd = -1;
       return fd_map[i].remote_fd;
     }
@@ -517,10 +517,16 @@ void run() {
           } else if (peer_shm_data->cmd == CMD_CLOSE) {
             if (run_as_server) {
               DEBUG("Closing %d", peer_shm_data->fd);
+              if (epoll_ctl(epollfd, EPOLL_CTL_DEL, peer_shm_data->fd, NULL) == -1) {
+                ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
+              }
               close(peer_shm_data->fd);
             } else {
               int fd = map_peer_fd(peer_shm_data->fd, 1);
               DEBUG("Closing %d peer fd=%d", fd, peer_shm_data->fd);
+              if (epoll_ctl(epollfd, EPOLL_CTL_DEL, fd, NULL) == -1) {
+                ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
+              }
               close(fd);
             }
           }
@@ -547,7 +553,7 @@ void run() {
           }
           if (my_buffer_fds.revents ^ POLLOUT) {
             ERROR("unexpected event on shmem_fd %d: 0x%x\n", shmem_fd,
-                  my_buffer_fds.events);
+                  my_buffer_fds.revents);
           }
 
           DEBUG("Reading from connected client #%d", events[n].data.fd);
@@ -571,16 +577,13 @@ void run() {
       /* Handling connection close */
       if (events[n].events & (EPOLLHUP | EPOLLERR)) {
         DEBUG("Closing fd#%d", events[n].data.fd);
-        if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
-          ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
-        }
 
-        close(events[n].data.fd);
-        // Inform the peer that the socket has been closed
+        // Inform the peer that the closed is being closed
         rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
         if (rv < 0) {
           ERROR("shmem poll timeout", "");
         }
+
         my_shm_data->cmd = CMD_CLOSE;
         if (run_as_server)
           my_shm_data->fd = events[n].data.fd;
@@ -592,6 +595,11 @@ void run() {
         DEBUG("Sending close request for %d", my_shm_data->fd);
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
               peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
+
+        if (epoll_ctl(epollfd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
+          ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
+        }
+        close(events[n].data.fd);
       }
     }
   } /* while(1) */
