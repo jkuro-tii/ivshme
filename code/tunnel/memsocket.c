@@ -460,15 +460,15 @@ void run() {
         else if (!run_as_server &&
                  get_remote_socket(events[n].data.fd, 0, 1) > 0) {
 
-          int remote_fd = get_remote_socket(events[n].data.fd, 0, 1);
-          DEBUG("get_remote_socket: %d", remote_fd);
+          int conn_fd = get_remote_socket(events[n].data.fd, 0, 1);
+          DEBUG("get_remote_socket: %d", conn_fd);
 
           /* Wait for the memory buffer to be ready */
           DEBUG("Data from wayland. Waiting for shmem buffer", "");
-          poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
-          if (my_buffer_fds.revents ^ POLLOUT) {
-            ERROR("unexpected event on shmem_fd %d: 0x%x", shmem_fd,
-                  my_buffer_fds.revents);
+          rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
+          if ((rv <= 0) || (my_buffer_fds.revents ^ POLLOUT)) {
+            ERROR("unexpected event on shmem_fd %d: 0x%x poll=%d", shmem_fd,
+                  my_buffer_fds.revents, rv);
           }
 
           DEBUG("Reading from wayland socket", "");
@@ -479,11 +479,11 @@ void run() {
             continue;
           }
           DEBUG("Read & sent %d bytes on fd#%d sent to %d\n", len,
-                events[n].data.fd, remote_fd);
+                events[n].data.fd, conn_fd);
 
           /* Send the data to the peer Wayland app server */
           my_shm_data->cmd = CMD_DATA;
-          my_shm_data->fd = remote_fd;
+          my_shm_data->fd = conn_fd;
           my_shm_data->len = len;
           ioctl(shmem_fd, SHMEM_IOCDORBELL,
                 peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
@@ -495,7 +495,7 @@ void run() {
                 peer_shm_data->cmd, peer_shm_data->fd);
 
           if (peer_shm_data->cmd == -1) {
-            ERROR("Imvalid CMD from peer!", "");
+            ERROR("Invalid CMD from peer!", "");
           }
 
           else if (peer_shm_data->cmd == CMD_DATA) {
@@ -537,7 +537,7 @@ void run() {
         } /* End of "data arrived from the peer via shared memory" */
 
         else if (events[n].data.fd == server_socket) {
-          ERROR("ignored data from server socket", "");
+          ERROR("Ignored data from server socket", "");
         }
 
         /* Server side: Data arrived from connected waypipe server */
@@ -549,8 +549,8 @@ void run() {
             ERROR("shmem poll timeout", "");
           }
           if (my_buffer_fds.revents ^ POLLOUT) {
-            ERROR("unexpected event on shmem_fd %d: 0x%x\n", shmem_fd,
-                  my_buffer_fds.revents);
+            ERROR("unexpected event on shmem_fd %d: 0x%x poll=%d\n", shmem_fd,
+                  my_buffer_fds.revents, rv);
           }
 
           DEBUG("Reading from connected client #%d", events[n].data.fd);
@@ -597,7 +597,7 @@ void run() {
           ERROR("epoll_ctl: EPOLL_CTL_DEL", "");
         }
         close(events[n].data.fd);
-      }
+      } /* Handling connection close */
     }
   } /* while(1) */
 }
