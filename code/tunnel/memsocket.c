@@ -325,6 +325,12 @@ void shmem_sync() {
       peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
 
   do {
+    if (run_as_server) {
+      vm_control->iv_server = my_vmid;
+    } else {
+      vm_control->iv_client = my_vmid;
+    }
+    
     res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
     if (res > 0) {
       if (fds.revents & POLLIN) {
