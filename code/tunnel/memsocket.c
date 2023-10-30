@@ -35,7 +35,7 @@
 #define MAX_CLIENTS (100)
 #define BUFFER_SIZE (1024000)
 #define SHMEM_POLL_TIMEOUT (300)
-#define SHMEM_BUFFER_SIZE (1024000 * 2)
+#define SHMEM_BUFFER_SIZE (1024000)
 #define TEST_SLEEP_TIME (3333333)
 #define SYNC_SLEEP_TIME (333333)
 
@@ -328,19 +328,10 @@ void shmem_sync() {
       peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
 
   do {
-    // if (run_as_server) { // not needed ???
-    //   vm_control->iv_server = my_vmid;
-    //   peer_vm_id = vm_control->iv_client;
-    // } else {
-    //   vm_control->iv_client = my_vmid;
-    //   peer_vm_id = vm_control->iv_server;
-    // }
-
     usleep(random() % SYNC_SLEEP_TIME);
     my_shm_data->cmd = CMD_START;
     if (peer_shm_data->cmd != CMD_RST)
       break;
-
   } while (1);
 
   /* Force unlock the local buffer */
@@ -657,11 +648,7 @@ int main(int argc, char **argv) {
   if (run_as_server)
     server_init();
 
-  if (run()) { /* restart */
-    if (execv(argv[0], argv)) {
-      FATAL("execv");
-    }
-  }
+  run();
 
   return 0;
 }
