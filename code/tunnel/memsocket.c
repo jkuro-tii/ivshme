@@ -143,6 +143,11 @@ int get_shmem_size() {
 int server_init() {
   struct sockaddr_un socket_name;
 
+  // Remove socket file if exists
+  if (access(socket_path, F_OK) == 0) {
+    remove(socket_path);
+  }
+
   server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
   if (server_socket < 0) {
     FATAL("server socket");
