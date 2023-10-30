@@ -300,8 +300,8 @@ void shmem_sync() {
   unsigned int static counter = 0;
   struct pollfd fds = {.fd = shmem_fd, .events = POLLIN|POLLOUT, .revents = 0};
 
-  vm_control->iv_client = 0;
-  vm_control->iv_server = 0;
+  // vm_control->iv_client = 0;
+  // vm_control->iv_server = 0;
 
   INFO("Syncing", "");
   do {
@@ -326,7 +326,7 @@ void shmem_sync() {
       peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
 
   do {
-    if (run_as_server) {
+    if (run_as_server) { // not needed ???
       vm_control->iv_server = my_vmid;
       peer_vm_id = vm_control->iv_client;
     } else {
