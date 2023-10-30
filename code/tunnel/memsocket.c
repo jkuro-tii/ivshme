@@ -330,20 +330,17 @@ void shmem_sync() {
     } else {
       vm_control->iv_client = my_vmid;
     }
-    
+
     res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
     if (res > 0) {
       if (fds.revents & POLLIN) {
-        if (peer_shm_data->cmd == CMD_RST)
-          continue;
         if (peer_shm_data->cmd == CMD_START)
           break;
       }
-      if (fds.revents & POLLOUT) {
+      ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
         my_shm_data->cmd = CMD_START;
         ioctl(shmem_fd, SHMEM_IOCDORBELL,
             peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
-      }
     }
   } while (1);
 
