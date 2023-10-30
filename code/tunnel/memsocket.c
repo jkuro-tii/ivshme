@@ -472,8 +472,9 @@ int run() {
           DEBUG("Data from wayland. Waiting for shmem buffer", "");
           rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
           if ((rv <= 0) || (my_buffer_fds.revents ^ POLLOUT)) {
-            ERROR("unexpected event on shmem_fd %d: 0x%x poll=%d", shmem_fd,
+            ERROR("unexpected event on shmem_fd %d: 0x%x poll=%d. Restarting", shmem_fd,
                   my_buffer_fds.revents, rv);
+            return 1;
           }
 
           DEBUG("Reading from wayland socket", "");
@@ -504,9 +505,7 @@ int run() {
             return 1;
           } else if (peer_shm_data->cmd == -1) {
             ERROR("Invalid CMD from peer!", "");
-          }
-
-          else if (peer_shm_data->cmd == CMD_DATA) {
+          } else if (peer_shm_data->cmd == CMD_DATA) {
             conn_fd = run_as_server ? peer_shm_data->fd
                                     : map_peer_fd(peer_shm_data->fd, 0);
             DEBUG("shmem: received %d bytes for %d", peer_shm_data->len,
