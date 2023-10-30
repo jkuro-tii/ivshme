@@ -415,6 +415,11 @@ int run() {
   int count;
   while (1) {
 
+    if (run_as_server)
+      vm_control->iv_server = my_vmid;
+    else
+      vm_control->iv_client = my_vmid;
+
     nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
     if (nfds == -1) {
       FATAL("epoll_wait");
