@@ -336,13 +336,16 @@ void shmem_sync() {
     res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
     if (res > 0) {
       if (fds.revents & POLLIN) {
-        if (peer_shm_data->cmd == CMD_START)
+        if (peer_shm_data->cmd == CMD_START) {
+          ioctl(shmem_fd, SHMEM_IOCDORBELL,
+            peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC);
           break;
+        }
       }
       ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
-        my_shm_data->cmd = CMD_START;
-        ioctl(shmem_fd, SHMEM_IOCDORBELL,
-            peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
+      my_shm_data->cmd = CMD_START;
+      ioctl(shmem_fd, SHMEM_IOCDORBELL,
+        peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
     }
   } while (1);
 
