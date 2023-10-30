@@ -327,8 +327,10 @@ void shmem_sync() {
   do {
     if (run_as_server) {
       vm_control->iv_server = my_vmid;
+      peer_vm_id = vm_control->iv_client;
     } else {
       vm_control->iv_client = my_vmid;
+      peer_vm_id = vm_control->iv_server;
     }
 
     res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
