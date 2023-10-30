@@ -83,7 +83,7 @@
     report(tmp1, 1);                                                           \
   }
 
-enum { CMD_CONNECT, CMD_DATA, CMD_CLOSE, CMD_RST };
+enum { CMD_CONNECT, CMD_DATA, CMD_CLOSE, CMD_RST, CMD_START };
 #define FD_MAP_COUNT (sizeof(fd_map) / sizeof(fd_map[0]))
 struct {
   int my_fd;
@@ -296,9 +296,9 @@ void shmem_test() {
 
 void shmem_sync() {
   int timeout, res;
-  unsigned int iv, data;
+  unsigned int data;
   unsigned int static counter = 0;
-  struct pollfd fds = {.fd = shmem_fd, .events = POLLIN, .revents = 0};
+  struct pollfd fds = {.fd = shmem_fd, .events = POLLIN|POLLOUT, .revents = 0};
 
   vm_control->iv_client = 0;
   vm_control->iv_server = 0;
@@ -313,17 +313,32 @@ void shmem_sync() {
       vm_control->iv_client = my_vmid;
       peer_vm_id = vm_control->iv_server;
     }
-    my_shm_data->cmd = CMD_RST;
-    iv = peer_vm_id;
-    if (!iv) /* If peer hasn't filled its id, wait */
-      continue;
-
-    iv |= LOCAL_RESOURCE_READY_INT_VEC;
-    peer_shm_data->len = 0;
-    ioctl(shmem_fd, SHMEM_IOCDORBELL, iv);
-    res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
-    if ((res > 0) && (fds.revents & POLLIN))
+    if (peer_vm_id) /* If peer hasn't filled its id, wait */
       break;
+  } while (1);
+
+  // Send restart to the peer
+  ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
+  my_shm_data->cmd = CMD_RST;
+  peer_shm_data->len = 0;
+  ioctl(shmem_fd, SHMEM_IOCDORBELL,
+      peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
+
+  do {
+    res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
+    if (res > 0) {
+      if (fds.revents & POLLIN) {
+        if (peer_shm_data->cmd == CMD_RST)
+          continue;
+        if (peer_shm_data->cmd == CMD_START)
+          break;
+      }
+      if (fds.revents & POLLOUT) {
+        my_shm_data->cmd = CMD_START;
+        ioctl(shmem_fd, SHMEM_IOCDORBELL,
+            peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
+      }
+    }
   } while (1);
 
   /* Force unlock the local buffer */
@@ -414,11 +429,6 @@ int run() {
   DEBUG("Listening for events", "");
   int count;
   while (1) {
-
-    if (run_as_server)
-      vm_control->iv_server = my_vmid;
-    else
-      vm_control->iv_client = my_vmid;
 
     nfds = epoll_wait(epollfd, events, MAX_EVENTS, -1);
     if (nfds == -1) {
