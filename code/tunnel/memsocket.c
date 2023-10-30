@@ -83,7 +83,7 @@
     report(tmp1, 1);                                                           \
   }
 
-enum { CMD_CONNECT, CMD_DATA, CMD_CLOSE, CMD_SYNC };
+enum { CMD_CONNECT, CMD_DATA, CMD_CLOSE, CMD_RST };
 #define FD_MAP_COUNT (sizeof(fd_map) / sizeof(fd_map[0]))
 struct {
   int my_fd;
@@ -313,7 +313,7 @@ void shmem_sync() {
       vm_control->iv_client = my_vmid;
       peer_vm_id = vm_control->iv_server;
     }
-    my_shm_data->cmd = CMD_SYNC;
+    my_shm_data->cmd = CMD_RST;
     iv = peer_vm_id;
     if (!iv) /* If peer hasn't filled its id, wait */
       continue;
@@ -326,7 +326,7 @@ void shmem_sync() {
       break;
   } while (1);
 
-  /* Force that local buffer is unlocked */
+  /* Force unlock the local buffer */
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
   INFO("done", "");
 
@@ -401,7 +401,7 @@ int shmem_init() {
   return 0;
 }
 
-void run() {
+int run() {
   fd_set rfds;
   struct timeval tv;
   int conn_fd, rv, nfds, n;
@@ -494,7 +494,10 @@ void run() {
           DEBUG("shmem_fd event: 0x%x cmd: %d remote fd: %d", events[n].events,
                 peer_shm_data->cmd, peer_shm_data->fd);
 
-          if (peer_shm_data->cmd == -1) {
+          if (peer_shm_data->cmd == CMD_RST) {
+            ERROR("Cmd RST received. Restarting.", "");
+            return 1;
+          } else if (peer_shm_data->cmd == -1) {
             ERROR("Invalid CMD from peer!", "");
           }
 
@@ -600,6 +603,7 @@ void run() {
       } /* Handling connection close */
     }
   } /* while(1) */
+  return 0;
 }
 
 void print_usage_and_exit() {
@@ -637,7 +641,11 @@ int main(int argc, char **argv) {
   if (run_as_server)
     server_init();
 
-  run();
+  if (run()) { /* restart */
+    if (execv(argv[0], argv)) {
+      FATAL("execv");
+    }
+  }
 
   return 0;
 }
