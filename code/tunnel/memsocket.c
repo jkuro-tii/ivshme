@@ -305,9 +305,6 @@ void shmem_sync() {
   unsigned int static counter = 0;
   struct pollfd fds = {.fd = shmem_fd, .events = POLLIN|POLLOUT, .revents = 0};
 
-  // vm_control->iv_client = 0;
-  // vm_control->iv_server = 0;
-
   INFO("Syncing", "");
   do {
     usleep(random() % SYNC_SLEEP_TIME);
@@ -331,34 +328,19 @@ void shmem_sync() {
       peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
 
   do {
-    if (run_as_server) { // not needed ???
-      vm_control->iv_server = my_vmid;
-      peer_vm_id = vm_control->iv_client;
-    } else {
-      vm_control->iv_client = my_vmid;
-      peer_vm_id = vm_control->iv_server;
-    }
+    // if (run_as_server) { // not needed ???
+    //   vm_control->iv_server = my_vmid;
+    //   peer_vm_id = vm_control->iv_client;
+    // } else {
+    //   vm_control->iv_client = my_vmid;
+    //   peer_vm_id = vm_control->iv_server;
+    // }
 
-    res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
+    usleep(random() % SYNC_SLEEP_TIME);
     my_shm_data->cmd = CMD_START;
     if (peer_shm_data->cmd == CMD_START)
       break;
-    // usleep(random() % SYNC_SLEEP_TIME);
-    /*
-    if (res > 0) {
-      if (fds.revents & POLLIN) {
-        if (peer_shm_data->cmd == CMD_START) {
-          ioctl(shmem_fd, SHMEM_IOCDORBELL,
-            peer_vm_id | REMOTE_RESOURCE_CONSUMED_INT_VEC);
-          break;
-        }
-      }
-      ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
-      my_shm_data->cmd = CMD_START;
-      ioctl(shmem_fd, SHMEM_IOCDORBELL,
-        peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
-    }
-    */
+
   } while (1);
 
   /* Force unlock the local buffer */
