@@ -338,7 +338,7 @@ void shmem_sync() {
 
     usleep(random() % SYNC_SLEEP_TIME);
     my_shm_data->cmd = CMD_START;
-    if (peer_shm_data->cmd == CMD_START)
+    if (peer_shm_data->cmd != CMD_RST)
       break;
 
   } while (1);
