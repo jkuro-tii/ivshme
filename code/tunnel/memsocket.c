@@ -320,6 +320,7 @@ void shmem_sync() {
   // Send restart to the peer
   ioctl(shmem_fd, SHMEM_IOCRESTART, 0);
   my_shm_data->cmd = CMD_RST;
+  peer_shm_data->cmd = CMD_RST;
   peer_shm_data->len = 0;
   ioctl(shmem_fd, SHMEM_IOCDORBELL,
       peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
@@ -334,6 +335,11 @@ void shmem_sync() {
     }
 
     res = poll(&fds, 1, SHMEM_POLL_TIMEOUT);
+    my_shm_data->cmd = CMD_START;
+    if (peer_shm_data->cmd == CMD_START)
+      break;
+    // usleep(random() % SYNC_SLEEP_TIME);
+    /*
     if (res > 0) {
       if (fds.revents & POLLIN) {
         if (peer_shm_data->cmd == CMD_START) {
@@ -347,6 +353,7 @@ void shmem_sync() {
       ioctl(shmem_fd, SHMEM_IOCDORBELL,
         peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
     }
+    */
   } while (1);
 
   /* Force unlock the local buffer */
