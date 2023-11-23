@@ -1,1 +1,0 @@
-memtest: memtest.c
