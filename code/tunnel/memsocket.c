@@ -303,7 +303,8 @@ void shmem_sync() {
   int timeout, res;
   unsigned int data;
   unsigned int static counter = 0;
-  struct pollfd fds = {.fd = shmem_fd, .events = POLLIN|POLLOUT, .revents = 0};
+  struct pollfd fds = {
+      .fd = shmem_fd, .events = POLLIN | POLLOUT, .revents = 0};
 
   INFO("Syncing", "");
   do {
@@ -324,8 +325,7 @@ void shmem_sync() {
   my_shm_data->cmd = CMD_RST;
   peer_shm_data->cmd = CMD_RST;
   peer_shm_data->len = 0;
-  ioctl(shmem_fd, SHMEM_IOCDORBELL,
-      peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
+  ioctl(shmem_fd, SHMEM_IOCDORBELL, peer_vm_id | LOCAL_RESOURCE_READY_INT_VEC);
 
   do {
     usleep(random() % SYNC_SLEEP_TIME);
@@ -475,8 +475,8 @@ int run() {
           DEBUG("Data from wayland. Waiting for shmem buffer", "");
           rv = poll(&my_buffer_fds, 1, SHMEM_POLL_TIMEOUT);
           if ((rv <= 0) || (my_buffer_fds.revents ^ POLLOUT)) {
-            ERROR("unexpected event on shmem_fd %d: 0x%x poll=%d. Restarting", shmem_fd,
-                  my_buffer_fds.revents, rv);
+            ERROR("unexpected event on shmem_fd %d: 0x%x poll=%d. Restarting",
+                  shmem_fd, my_buffer_fds.revents, rv);
             return 1;
           }
 
