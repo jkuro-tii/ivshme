@@ -10,6 +10,7 @@ pushd linux-v6.1
 
   echo "obj-y                           += kvm_ivshmem.o" >> drivers/char/Makefile
   cp -v ../drivers/kvm_ivshmem.c ./drivers/char
+  cp -v ../drivers/kvm_ivshmem.h ./drivers/char
 
   git add .
   git commit -m "Shared memory driver"
